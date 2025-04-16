@@ -1,0 +1,19 @@
+services:
+  api-server:
+    image: smallestinc/self-hosted-api-server
+    environment:
+      - API_KEY=$SMALLEST_API_KEY
+    ports:
+      - "4444:7100"
+  model:
+    image: smallestinc/lightning:latest
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+      
+
