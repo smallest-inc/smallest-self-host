@@ -6,7 +6,7 @@ services:
     ports:
       - "4444:7100"
   model-ll:
-    image: smallestinc/lightnin-large
+    image: smallestinc/lightning-large
     deploy:
       resources:
         reservations:
