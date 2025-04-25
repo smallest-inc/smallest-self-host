@@ -1,12 +1,12 @@
 services:
   api-server:
-    image: smallestinc/self-hosted-api-server
+    image: quay.io/smallestinc/self-hosted-api-server:latest
     environment:
       - API_KEY=$SMALLEST_API_KEY
     ports:
       - "4444:7100"
   model-ll:
-    image: smallestinc/lightning-large
+    image: quay.io/smallestinc/lightning-large:latest
     deploy:
       resources:
         reservations:
