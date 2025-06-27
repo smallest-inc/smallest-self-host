@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  api-server:
+    image: api:latest
+    container_name: api-server
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+    networks:
+      - kraken-network
+    restart: unless-stopped
+    volumes:
+      - ./on-prem/api-server:/app
+    depends_on:
+      - license-proxy
+
+  license-proxy:
+    image: license-proxy:latest
+    container_name: license-proxy
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+    networks:
+      - kraken-network
+    restart: unless-stopped
+    volumes:
+      - ./on-prem/license-proxy:/app
+  v2-on-prem:
+    image: v2:latest
+    container_name: v2-on-prem
+    ports:
+      - "2269:2269"
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+    networks:
+      - kraken-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+networks:
+  kraken-network:
+    driver: bridge
+    name: kraken-network
