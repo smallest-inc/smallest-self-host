@@ -2,10 +2,14 @@ version: '3.8'
 
 services:
   api-server:
-    image: quay.io/smallestinc/self-hosted-api-server:latest
+    # image: quay.io/smallestinc/self-hosted-api-server:latest
+    image: api:latest
     container_name: api-server
     environment:
       - LICENSE_KEY=${LICENSE_KEY}
+      - LIGHTNING_V2_BASE_URL=http://v2-on-prem:2269
+    ports:
+      - "7100:7100"
     networks:
       - kraken-network
     restart: unless-stopped
@@ -15,7 +19,8 @@ services:
       - license-proxy
 
   license-proxy:
-    image: quay.io/smallestinc/license-proxy:latest
+    # image: quay.io/smallestinc/license-proxy:latest
+    image: license-proxy:latest
     container_name: license-proxy
     environment:
       - LICENSE_KEY=${LICENSE_KEY}
@@ -25,7 +30,8 @@ services:
     volumes:
       - ./on-prem/license-proxy:/app
   v2-on-prem:
-    image: quay.io/smallestinc/lightning-v2:latest
+    # image: quay.io/smallestinc/lightning-v2:latest
+    image: v2:latest
     container_name: v2-on-prem
     ports:
       - "2269:2269"
