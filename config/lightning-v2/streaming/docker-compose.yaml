@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    networks:
+      - smallest-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    environment:
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+
+  api-server:
+    image: quay.io/smallestinc/self-hosted-api-server:rdYyELPCiC
+    container_name: api-server
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LIGHTNING_V2_BASE_URL=http://v2-on-prem:2269
+    ports:
+      - "7100:7100"
+    networks:
+      - smallest-network
+    restart: unless-stopped
+    volumes:
+      - ./on-prem/api-server:/app
+    depends_on:
+      - license-proxy
+  license-proxy:
+    image: quay.io/smallestinc/license-proxy:latest
+    container_name: license-proxy
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+    networks:
+      - smallest-network
+    restart: unless-stopped
+    volumes:
+      - ./on-prem/license-proxy:/app
+  v2-on-prem:
+    image: quay.io/smallestinc/lightning-v2-streaming:rdYyELPCiC
+    container_name: v2-on-prem
+    ports:
+      - "2269:2269"
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+    networks:
+      - smallest-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+networks:
+  kraken-network:
+    driver: bridge
+    name: smallest-network
+
