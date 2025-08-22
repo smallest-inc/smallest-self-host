@@ -4,8 +4,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis-server
-    ports:
-      - "6379:6379"
     networks:
       - smallest-network
     restart: unless-stopped
@@ -14,7 +12,7 @@ services:
       - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
 
   api-server:
-    image: quay.io/smallestinc/self-hosted-api-server:rdYyELPCiC
+    image: quay.io/smallestinc/self-hosted-api-server:latest
     container_name: api-server
     environment:
       - LICENSE_KEY=${LICENSE_KEY}
@@ -57,7 +55,7 @@ services:
               capabilities: [ gpu ]
 
 networks:
-  kraken-network:
+  smallest-network:
     driver: bridge
     name: smallest-network
 
