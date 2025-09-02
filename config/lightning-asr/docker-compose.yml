@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  lightning-asr-offline:
+    image: quay.io/smallestinc/lightning-asr:pasfnqwjd
+    ports:
+      - "2233:2233"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYARMOR_LICENSE=1
+      - LICENSE_KEY=${LICENSE_KEY}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - kraken-network
+  api-server:
+    image: quay.io/smallestinc/self-hosted-api-server:pasfnqwjd
+    container_name: api-server
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+      - STT_INFERENCE_URL=http://lightning-asr-offline:2233
+    ports:
+      - "7100:7100"
+    networks:
+      - kraken-network
+    restart: unless-stopped
+    volumes:
+      - ./on-prem/api-server:/app
+    depends_on:
+      - license-proxy
+
+  license-proxy:
+    image: quay.io/smallestinc/license-proxy:latest
+    container_name: license-proxy
+    environment:
+      - LICENSE_KEY=${LICENSE_KEY}
+    networks:
+      - kraken-network
+    restart: unless-stopped
+    volumes:
+      - ./on-prem/license-proxy:/app
+
+networks:
+  kraken-network:
+    driver: bridge
+    name: kraken-network
