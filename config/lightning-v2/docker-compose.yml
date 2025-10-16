@@ -1,39 +1,64 @@
 version: '3.8'
 
 services:
-  api-server:
-    image: quay.io/smallestinc/self-hosted-api-server:latest
-    container_name: api-server
-    environment:
-      - LICENSE_KEY=${LICENSE_KEY}
-      - LIGHTNING_V2_BASE_URL=http://v2-on-prem:2269
+  redis:
+    image: redis:7-alpine
+    container_name: redis-server
     ports:
-      - "7100:7100"
+      - "6379:6379"
     networks:
       - kraken-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - ./on-prem/redis-data:/data
+    environment:
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+  api-server:
+    image: quay.io/smallestinc/self-hosted-api-server:7o3u2y
+    container_name: api-server
+    environment:
+      - PORT=7100
+      - API_BASE_URL=http://license-proxy:3369
+      - LICENSE_KEY=${LICENSE_KEY}
+      - LIGHTNING_LARGE_BASE_URL=http://lightning-large-on-prem:9989
+      - LIGHTNING_V2_BASE_URL=http://lightning-v2-on-prem:2269
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # - REDIS_USERNAME=
+      # - REDIS_PASSWORD=
+    networks:
+      - kraken-network
+    ports:
+      - "7100:7100" # keep is same as the env variable PORT
     restart: unless-stopped
     volumes:
       - ./on-prem/api-server:/app
     depends_on:
       - license-proxy
-
   license-proxy:
-    image: quay.io/smallestinc/license-proxy:latest
+    image: quay.io/smallestinc/license-proxy:7o3u2y
     container_name: license-proxy
     environment:
+      - PORT=3369
       - LICENSE_KEY=${LICENSE_KEY}
     networks:
       - kraken-network
     restart: unless-stopped
     volumes:
       - ./on-prem/license-proxy:/app
-  v2-on-prem:
-    image: quay.io/smallestinc/lightning-v2:latest
-    container_name: v2-on-prem
+  lightning-v2-on-prem:
+    image: quay.io/smallestinc/lightning-v2:7o3u2y
+    container_name: lightning-v2-on-prem
     ports:
       - "2269:2269"
     environment:
+      - PORT=2269
       - LICENSE_KEY=${LICENSE_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # - REDIS_USERNAME = 
+      # - REDIS_PASSWORD = 
     networks:
       - kraken-network
     restart: unless-stopped
@@ -44,7 +69,6 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [ gpu ]
-
 networks:
   kraken-network:
     driver: bridge
