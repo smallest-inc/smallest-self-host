@@ -1,14 +1,14 @@
 version: '3.8'
 
 services:
-  lightning-asr-offline:
-    image: quay.io/smallestinc/lightning-asr:pasfnqwjd
+  lightning-asr:
+    image: quay.io/smallestinc/lightning-asr-multi:latest
+    # image: quay.io/smallestinc/lightning-asr-enlish:latest # for english model
     ports:
       - "2233:2233"
     environment:
-      - CUDA_VISIBLE_DEVICES=0
-      - PYARMOR_LICENSE=1
       - LICENSE_KEY=${LICENSE_KEY}
+      - PORT=2233
     deploy:
       resources:
         reservations:
@@ -24,7 +24,7 @@ services:
     container_name: api-server
     environment:
       - LICENSE_KEY=${LICENSE_KEY}
-      - STT_INFERENCE_URL=http://lightning-asr-offline:2233
+      - LIGHTNING_ASR_BASE_URL=http://lightning-asr:2233
     ports:
       - "7100:7100"
     networks:
