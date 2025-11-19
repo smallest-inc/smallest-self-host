@@ -20,11 +20,12 @@ services:
     networks:
       - kraken-network
   api-server:
-    image: quay.io/smallestinc/self-hosted-api-server:pasfnqwjd
+    image: quay.io/smallestinc/self-hosted-api-server:181125
     container_name: api-server
     environment:
       - LICENSE_KEY=${LICENSE_KEY}
       - LIGHTNING_ASR_BASE_URL=http://lightning-asr:2233
+      - API_BASE_URL=http://license-proxy:6699
     ports:
       - "7100:7100"
     networks:
