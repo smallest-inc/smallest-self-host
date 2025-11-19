@@ -3,7 +3,7 @@ version: '3.8'
 services:
   lightning-asr:
     image: quay.io/smallestinc/lightning-asr-multi:latest
-    # image: quay.io/smallestinc/lightning-asr-enlish:latest # for english model
+    # image: quay.io/smallestinc/lightning-asr-english:latest # for english model
     ports:
       - "2233:2233"
     environment:
