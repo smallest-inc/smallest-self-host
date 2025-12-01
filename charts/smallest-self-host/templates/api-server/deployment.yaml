@@ -54,6 +54,14 @@ spec:
           initialDelaySeconds: {{ .Values.apiServer.readinessProbe.initialDelaySeconds }}
           periodSeconds: {{ .Values.apiServer.readinessProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.apiServer.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.apiServer.readinessProbe.failureThreshold }}
+        startupProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.apiServer.port }}
+          initialDelaySeconds: {{ .Values.apiServer.startupProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiServer.startupProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.apiServer.startupProbe.timeoutSeconds }}
         {{- if .Values.apiServer.resources }}
         resources:
           {{- toYaml .Values.apiServer.resources | nindent 10 }}

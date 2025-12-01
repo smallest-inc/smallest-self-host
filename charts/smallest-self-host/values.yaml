@@ -1,7 +1,7 @@
 global:
   pullSecretRef: "smallest-quay-registry-secret"
   outstandingRequestGracePeriod: 30
-  licenseKey: "2GmjClF+GIqtdp0NgCEoWeoLE4fc0kz7xUAXRa8Y"
+  licenseKey: "2331e900ee76e5c9cb619547ae34ab9304cf96ff726550396f9408f68cbfe3b1"
 
 scaling:
   replicaCount: 1
@@ -28,6 +28,12 @@ apiServer:
     periodSeconds: 10
     timeoutSeconds: 5
 
+  startupProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+
   service:
     type: ClusterIP
     loadBalancerSourceRanges: []
@@ -35,7 +41,7 @@ apiServer:
 
 lightningAsr:
   namePrefix: lightning-asr
-  image: "quay.io/smallestinc/lightning-asr:latest"
+  image: "quay.io/smallestinc/lightning-asr-english:latest"
   imagePullPolicy: IfNotPresent
   port: 2269
   baseUrl: ""
@@ -55,6 +61,13 @@ lightningAsr:
     initialDelaySeconds: 60
     periodSeconds: 30
     timeoutSeconds: 10
+    failureThreshold: 40
+
+  resources:
+    limits:
+      nvidia.com/gpu: 1
+    requests:
+      nvidia.com/gpu: 1
 
 licenseProxy:
   namePrefix: license-proxy
@@ -87,3 +100,5 @@ redis:
     persistence:
       enabled: true
       size: 8Gi
+
+
