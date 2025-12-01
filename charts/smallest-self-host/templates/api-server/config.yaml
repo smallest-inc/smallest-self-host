@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.apiServer.namePrefix }}-config
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+data:
+  api.toml: |
+    [license_proxy]
+      url = [
+        "https://{{ .Values.licenseProxy.namePrefix }}-internal:{{ .Values.licenseProxy.port}}{{ .Values.licenseProxy.baseUrl }}"
+      ]
+
+    [server]
+      base_url = "{{ .Values.apiServer.baseUrl }}"
+      host = "{{ .Values.apiServer.host }}"
+      port = {{ .Values.apiServer.port }}
+      lightning_asr_url = "https://{{ .Values.lightningAsr.namePrefix }}-internal:{{ .Values.lightningAsr.port}}{{ .Values.lightningAsr.baseUrl }}"
+      redis_host = "{{ .Values.redis.host }}"
+      redis_port = {{ .Values.redis.port }}
+      redis_username = "{{ .Values.redis.username }}"
+      redis_password = "{{ .Values.redis.password }}"
+      redis_ssl = {{ .Values.redis.ssl }}

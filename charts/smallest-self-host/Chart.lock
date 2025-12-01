@@ -1,0 +1,18 @@
+dependencies:
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 24.0.0
+- name: gpu-operator
+  repository: https://helm.ngc.nvidia.com/nvidia
+  version: v24.9.2
+- name: cluster-autoscaler
+  repository: https://kubernetes.github.io/autoscaler
+  version: 9.52.1
+- name: kube-prometheus-stack
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 60.5.0
+- name: prometheus-adapter
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 4.14.2
+digest: sha256:9e0ac260aaf8263e08201c788d7b2c291c901179b41739caf8f3d5990b16829a
+generated: "2025-12-01T13:58:37.248449+05:30"

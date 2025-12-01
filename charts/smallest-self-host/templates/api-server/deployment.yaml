@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.apiServer.namePrefix }}
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.scaling.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "smallest-self-host.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.apiServer.podAnnotations }}
+    spec:
+        containers:
+        - name: {{ .Values.apiServer.namePrefix }}
+          image: {{ .Values.apiServer.image }}
+          imagePullPolicy: {{ .Values.apiServer.imagePullPolicy }}
+          volumeMounts:
+          - name: lightning-asr-config-volume
+            mountPath: /etc/config
+          ports:
+          - name: http
+            containerPort: {{ .Values.apiServer.port }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.apiServer.port }}
+            initialDelaySeconds: {{ .Values.apiServer.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.apiServer.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.apiServer.livenessProbe.timeoutSeconds }}
+          readinessProbe:
+            exec: 
+                command:
+                - /bin/sh
+                - -c
+                - curl -sf http://:{{ .Values.apiServer.port }}/health | grep -q "true"
+            initialDelaySeconds: {{ .Values.apiServer.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.apiServer.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.apiServer.readinessProbe.timeoutSeconds }}
+        volumes:
+        - name: api-config-volume
+            configMap:
+            name: {{ .Values.apiServer.namePrefix }}-config

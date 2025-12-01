@@ -1,0 +1,92 @@
+global:
+  pullSecretRef: ""
+  outstandingRequestGracePeriod: 30
+
+scaling:
+  replicaCount: 1
+  replicas:
+    lightningAsr: 1
+    licenseProxy: 1
+
+apiServer:
+  namePrefix: api-server
+  image: ""
+  imagePullPolicy: IfNotPresent
+  port: 7100
+  baseUrl: ""
+  host: "0.0.0.0"
+  podAnnotations: {}
+
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  service:
+    type: ClusterIP
+    loadBalancerSourceRanges: []
+    externalTrafficPolicy: ""
+
+lightningAsr:
+  namePrefix: lightning-asr
+  image: ""
+  imagePullPolicy: IfNotPresent
+  port: 2269
+  baseUrl: ""
+  podAnnotations: {}
+
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  livenessProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+
+  readinessProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+
+licenseProxy:
+  namePrefix: license-proxy
+  image: ""
+  imagePullPolicy: IfNotPresent
+  port: 3369
+  baseUrl: ""
+  podAnnotations: {}
+
+  service:
+    type: ClusterIP
+
+  licenseKeySecret:
+    name: license-key-secret
+    key: LICENSE_KEY
+
+  resources: {}
+
+  volumeMounts: []
+
+  volumes: []
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "SmallestSelfHostRedisRandom"
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+  replica:
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 8Gi

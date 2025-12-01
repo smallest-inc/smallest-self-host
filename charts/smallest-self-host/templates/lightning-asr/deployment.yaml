@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.lightningAsr.namePrefix }}
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.scaling.replicas.lightningAsr }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.lightningAsr.updateStrategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.lightningAsr.updateStrategy.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "smallest-self-host.selectorLabels" . }}
+  template:
+    metadata:
+      {{- with .Values.lightningAsr.podAnnotations }}
+    spec:
+        terminationGracePeriodSeconds: {{ .Values.global.outstandingRequestGracePeriod }}
+        {{- if .Values.global.pullSecretRef }}
+        imagePullSecrets:
+        - name: {{ .Values.global.pullSecretRef }}
+        {{- end }}
+        containers:
+        - name: {{ .Values.lightningAsr.namePrefix }}
+          image: {{ .Values.lightningAsr.image }}
+          imagePullPolicy: {{ .Values.lightningAsr.imagePullPolicy }}
+          volumeMounts:
+          - name: api-config-volume
+            mountPath: /etc/config
+          ports:
+          - name: http
+            containerPort: {{ .Values.lightningAsr.port }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.lightningAsr.port }}
+            initialDelaySeconds: {{ .Values.lightningAsr.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.lightningAsr.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.lightningAsr.livenessProbe.timeoutSeconds }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.lightningAsr.port }}
+            initialDelaySeconds: {{ .Values.lightningAsr.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.lightningAsr.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.lightningAsr.readinessProbe.timeoutSeconds }}
+        volumes:
+        - name: lightning-asr-config-volume
+            configMap:
+            name: {{ .Values.lightningAsr.namePrefix }}-config
