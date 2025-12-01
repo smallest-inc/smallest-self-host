@@ -33,10 +33,7 @@ spec:
         - name: PORT
           value: "{{ .Values.licenseProxy.port }}"
         - name: LICENSE_KEY
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.licenseProxy.licenseKeySecret.name | default "license-key-secret" }}
-              key: {{ .Values.licenseProxy.licenseKeySecret.key | default "LICENSE_KEY" }}
+          value: "{{ .Values.global.licenseKey }}"
         ports:
         - name: http
           containerPort: {{ .Values.licenseProxy.port }}

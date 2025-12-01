@@ -1,6 +1,7 @@
 global:
-  pullSecretRef: ""
+  pullSecretRef: "smallest-quay-registry-secret"
   outstandingRequestGracePeriod: 30
+  licenseKey: "2GmjClF+GIqtdp0NgCEoWeoLE4fc0kz7xUAXRa8Y"
 
 scaling:
   replicaCount: 1
@@ -10,7 +11,7 @@ scaling:
 
 apiServer:
   namePrefix: api-server
-  image: ""
+  image: "quay.io/smallestinc/self-hosted-api-server:latest"
   imagePullPolicy: IfNotPresent
   port: 7100
   baseUrl: ""
@@ -34,7 +35,7 @@ apiServer:
 
 lightningAsr:
   namePrefix: lightning-asr
-  image: ""
+  image: "quay.io/smallestinc/lightning-asr:latest"
   imagePullPolicy: IfNotPresent
   port: 2269
   baseUrl: ""
@@ -57,7 +58,7 @@ lightningAsr:
 
 licenseProxy:
   namePrefix: license-proxy
-  image: ""
+  image: "quay.io/smallestinc/license-proxy:latest"
   imagePullPolicy: IfNotPresent
   port: 3369
   baseUrl: ""
@@ -65,10 +66,6 @@ licenseProxy:
 
   service:
     type: ClusterIP
-
-  licenseKeySecret:
-    name: license-key-secret
-    key: LICENSE_KEY
 
   resources: {}
 
