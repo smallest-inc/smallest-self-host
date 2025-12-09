@@ -1,7 +1,18 @@
 global:
-  pullSecretRef: "smallest-quay-registry-secret"
+  pullSecretRef: ""
   outstandingRequestGracePeriod: 30
-  licenseKey: "2331e900ee76e5c9cb619547ae34ab9304cf96ff726550396f9408f68cbfe3b1"
+  # licenseKey and imageCredentials are required for the self-hosted deployment
+  licenseKey: ""
+  licenseKeySecretRef: ""
+  imageCredentialsSecretRef: ""
+
+  # this will be provided by team, if not, please contact support@smallest.ai
+  imageCredentials:
+    create: true
+    registry: quay.io
+    username: ""
+    password: ""
+    email: ""
 
 scaling:
   replicaCount: 1
@@ -27,6 +38,7 @@ apiServer:
     initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
+    failureThreshold: 3
 
   startupProbe:
     initialDelaySeconds: 30
@@ -38,6 +50,14 @@ apiServer:
     type: ClusterIP
     loadBalancerSourceRanges: []
     externalTrafficPolicy: ""
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 lightningAsr:
   namePrefix: lightning-asr
@@ -53,21 +73,33 @@ lightningAsr:
       maxSurge: 1
 
   livenessProbe:
-    initialDelaySeconds: 60
+    initialDelaySeconds: 300
     periodSeconds: 30
     timeoutSeconds: 10
 
   readinessProbe:
-    initialDelaySeconds: 60
+    initialDelaySeconds: 300
     periodSeconds: 30
     timeoutSeconds: 10
     failureThreshold: 40
 
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
+
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+
+  labels: []
+
   resources:
     limits:
+      memory: 12Gi
       nvidia.com/gpu: 1
     requests:
       nvidia.com/gpu: 1
+      memory: 10Gi
 
 licenseProxy:
   namePrefix: license-proxy
@@ -76,6 +108,17 @@ licenseProxy:
   port: 3369
   baseUrl: ""
   podAnnotations: {}
+
+  livenessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
 
   service:
     type: ClusterIP
@@ -88,17 +131,18 @@ licenseProxy:
 
 redis:
   enabled: true
+  externalHost: ""
+  port: 6379
+  ssl: false
   auth:
     enabled: true
     password: "SmallestSelfHostRedisRandom"
   master:
     persistence:
-      enabled: true
+      enabled: false
       size: 8Gi
   replica:
     replicaCount: 1
     persistence:
-      enabled: true
+      enabled: false
       size: 8Gi
-
-

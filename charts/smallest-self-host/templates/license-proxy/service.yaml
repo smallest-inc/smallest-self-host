@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.licenseProxy.namePrefix }}
+  name: {{ .Values.licenseProxy.namePrefix }}-internal
   labels:
     {{- include "smallest-self-host.labels" . | nindent 4 }}
     app: {{ .Values.licenseProxy.namePrefix }}

@@ -21,9 +21,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      {{- if .Values.global.pullSecretRef }}
+      {{- if or .Values.global.pullSecretRef .Values.global.imageCredentials.create }}
       imagePullSecrets:
-      - name: {{ .Values.global.pullSecretRef }}
+      - name: {{ .Values.global.pullSecretRef | default (printf "%s-registry" (include "smallest-self-host.fullname" .)) }}
       {{- end }}
       containers:
       - name: {{ .Values.licenseProxy.namePrefix }}
@@ -33,7 +33,10 @@ spec:
         - name: PORT
           value: "{{ .Values.licenseProxy.port }}"
         - name: LICENSE_KEY
-          value: "{{ .Values.global.licenseKey }}"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.licenseKeySecretRef | default (printf "%s-license" (include "smallest-self-host.fullname" .)) }}
+              key: license-key
         ports:
         - name: http
           containerPort: {{ .Values.licenseProxy.port }}

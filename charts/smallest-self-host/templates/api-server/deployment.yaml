@@ -21,9 +21,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      {{- if .Values.global.pullSecretRef }}
+      {{- if or .Values.global.pullSecretRef .Values.global.imageCredentials.create }}
       imagePullSecrets:
-      - name: {{ .Values.global.pullSecretRef }}
+      - name: {{ .Values.global.pullSecretRef | default (printf "%s-registry" (include "smallest-self-host.fullname" .)) }}
       {{- end }}
       containers:
       - name: {{ .Values.apiServer.namePrefix }}
@@ -31,7 +31,10 @@ spec:
         imagePullPolicy: {{ .Values.apiServer.imagePullPolicy }}
         env:
         - name: LICENSE_KEY
-          value: "{{ .Values.global.licenseKey }}"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.licenseKeySecretRef | default (printf "%s-license" (include "smallest-self-host.fullname" .)) }}
+              key: license-key
         volumeMounts:
         - name: api-config-volume
           mountPath: /etc/config
@@ -40,7 +43,7 @@ spec:
           containerPort: {{ .Values.apiServer.port }}
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/v1/health
             port: {{ .Values.apiServer.port }}
           initialDelaySeconds: {{ .Values.apiServer.livenessProbe.initialDelaySeconds }}
           periodSeconds: {{ .Values.apiServer.livenessProbe.periodSeconds }}
@@ -50,18 +53,19 @@ spec:
             command:
             - /bin/sh
             - -c
-            - curl -sf http://:{{ .Values.apiServer.port }}/health | grep -q "true"
+            - curl -sf http://localhost:{{ .Values.apiServer.port }}/healthz | grep -q "true"
           initialDelaySeconds: {{ .Values.apiServer.readinessProbe.initialDelaySeconds }}
           periodSeconds: {{ .Values.apiServer.readinessProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.apiServer.readinessProbe.timeoutSeconds }}
           failureThreshold: {{ .Values.apiServer.readinessProbe.failureThreshold }}
         startupProbe:
           httpGet:
-            path: /health
+            path: /api/v1/health
             port: {{ .Values.apiServer.port }}
           initialDelaySeconds: {{ .Values.apiServer.startupProbe.initialDelaySeconds }}
           periodSeconds: {{ .Values.apiServer.startupProbe.periodSeconds }}
           timeoutSeconds: {{ .Values.apiServer.startupProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.apiServer.startupProbe.failureThreshold }}
         {{- if .Values.apiServer.resources }}
         resources:
           {{- toYaml .Values.apiServer.resources | nindent 10 }}
