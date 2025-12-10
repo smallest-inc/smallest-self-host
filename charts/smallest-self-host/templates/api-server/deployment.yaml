@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.apiServer.namePrefix }}
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.apiServer.namePrefix }}
+spec:
+  replicas: {{ .Values.scaling.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.apiServer.namePrefix }}
+      {{- include "smallest-self-host.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.apiServer.namePrefix }}
+        {{- include "smallest-self-host.selectorLabels" . | nindent 8 }}
+      {{- with .Values.apiServer.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if or .Values.global.pullSecretRef .Values.global.imageCredentials.create }}
+      imagePullSecrets:
+      - name: {{ .Values.global.pullSecretRef | default (printf "%s-registry" (include "smallest-self-host.fullname" .)) }}
+      {{- end }}
+      containers:
+      - name: {{ .Values.apiServer.namePrefix }}
+        image: {{ .Values.apiServer.image }}
+        imagePullPolicy: {{ .Values.apiServer.imagePullPolicy }}
+        env:
+        - name: LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.licenseKeySecretRef | default (printf "%s-license" (include "smallest-self-host.fullname" .)) }}
+              key: license-key
+        volumeMounts:
+        - name: api-config-volume
+          mountPath: /etc/config
+        ports:
+        - name: http
+          containerPort: {{ .Values.apiServer.port }}
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: {{ .Values.apiServer.port }}
+          initialDelaySeconds: {{ .Values.apiServer.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiServer.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.apiServer.livenessProbe.timeoutSeconds }}
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - curl -sf http://localhost:{{ .Values.apiServer.port }}/healthz | grep -q "true"
+          initialDelaySeconds: {{ .Values.apiServer.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiServer.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.apiServer.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.apiServer.readinessProbe.failureThreshold }}
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: {{ .Values.apiServer.port }}
+          initialDelaySeconds: {{ .Values.apiServer.startupProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiServer.startupProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.apiServer.startupProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.apiServer.startupProbe.failureThreshold }}
+        {{- if .Values.apiServer.resources }}
+        resources:
+          {{- toYaml .Values.apiServer.resources | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: api-config-volume
+        configMap:
+          name: {{ .Values.apiServer.namePrefix }}-config
+      restartPolicy: Always

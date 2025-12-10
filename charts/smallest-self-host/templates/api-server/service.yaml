@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.apiServer.namePrefix }}-external
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.apiServer.namePrefix }}
+spec:
+  type: {{ .Values.apiServer.service.type | default "ClusterIP" }}
+  selector:
+    app: {{ .Values.apiServer.namePrefix }}
+    {{- include "smallest-self-host.selectorLabels" . | nindent 4 }}
+  {{- if and (eq .Values.apiServer.service.type "LoadBalancer") .Values.apiServer.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+  {{- range .Values.apiServer.service.loadBalancerSourceRanges }}
+  - {{ . }}
+  {{- end }}
+  {{- end }}
+  {{- if and (eq .Values.apiServer.service.type "LoadBalancer") .Values.apiServer.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.apiServer.service.externalTrafficPolicy }}
+  {{- end }}
+  ports:
+  - name: http
+    port: {{ .Values.apiServer.port }}
+    targetPort: {{ .Values.apiServer.port }}

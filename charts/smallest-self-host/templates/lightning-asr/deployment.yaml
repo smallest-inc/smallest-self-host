@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.lightningAsr.namePrefix }}
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.lightningAsr.namePrefix }}
+spec:
+  replicas: {{ .Values.scaling.replicas.lightningAsr | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.lightningAsr.updateStrategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.lightningAsr.updateStrategy.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: {{ .Values.lightningAsr.namePrefix }}
+      {{- include "smallest-self-host.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.lightningAsr.namePrefix }}
+        {{- include "smallest-self-host.selectorLabels" . | nindent 8 }}
+      {{- with .Values.lightningAsr.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if or .Values.global.pullSecretRef .Values.global.imageCredentials.create }}
+      imagePullSecrets:
+      - name: {{ .Values.global.pullSecretRef | default (printf "%s-registry" (include "smallest-self-host.fullname" .)) }}
+      {{- end }}
+      {{- with .Values.lightningAsr.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.lightningAsr.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ .Values.lightningAsr.namePrefix }}
+        image: {{ .Values.lightningAsr.image }}
+        imagePullPolicy: {{ .Values.lightningAsr.imagePullPolicy | default "IfNotPresent" }}
+        env:
+        - name: LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.licenseKeySecretRef | default (printf "%s-license" (include "smallest-self-host.fullname" .)) }}
+              key: license-key
+        - name: PORT
+          value: "{{ .Values.lightningAsr.port }}"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+        ports:
+        - name: http
+          containerPort: {{ .Values.lightningAsr.port }}
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.lightningAsr.port }}
+          initialDelaySeconds: {{ .Values.lightningAsr.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.lightningAsr.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.lightningAsr.livenessProbe.timeoutSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.lightningAsr.port }}
+          initialDelaySeconds: {{ .Values.lightningAsr.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.lightningAsr.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.lightningAsr.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.lightningAsr.readinessProbe.failureThreshold }}
+        {{- if .Values.lightningAsr.resources }}
+        resources:
+          {{- toYaml .Values.lightningAsr.resources | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: config-volume
+        configMap:
+          name: {{ .Values.lightningAsr.namePrefix }}-config
+      restartPolicy: Always
+

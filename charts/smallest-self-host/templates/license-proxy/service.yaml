@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.licenseProxy.namePrefix }}-internal
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.licenseProxy.namePrefix }}
+spec:
+  type: {{ .Values.licenseProxy.service.type | default "ClusterIP" }}
+  selector:
+    app: {{ .Values.licenseProxy.namePrefix }}
+    {{- include "smallest-self-host.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: http
+    port: {{ .Values.licenseProxy.port }}
+    targetPort: {{ .Values.licenseProxy.port }}
+    protocol: TCP
+

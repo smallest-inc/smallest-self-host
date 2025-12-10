@@ -1,0 +1,150 @@
+global:
+  pullSecretRef: ""
+  outstandingRequestGracePeriod: 30
+  # licenseKey and imageCredentials are required for the self-hosted deployment
+  licenseKey: ""
+
+  # this will be provided by team, if not, please contact support@smallest.ai
+  imageCredentials:
+    create: true
+    registry: quay.io
+    username: ""
+    password: ""
+    email: ""
+
+  # ignore this if you are using the default licenseKey and imageCredentials
+  licenseKeySecretRef: ""
+  imageCredentialsSecretRef: ""
+
+scaling:
+  replicaCount: 1
+  replicas:
+    lightningAsr: 1
+    licenseProxy: 1
+
+apiServer:
+  namePrefix: api-server
+  image: "quay.io/smallestinc/self-hosted-api-server:latest"
+  imagePullPolicy: IfNotPresent
+  port: 7100
+  baseUrl: ""
+  host: "0.0.0.0"
+  podAnnotations: {}
+
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  startupProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+
+  service:
+    type: ClusterIP
+    loadBalancerSourceRanges: []
+    externalTrafficPolicy: ""
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+lightningAsr:
+  namePrefix: lightning-asr
+  image: "quay.io/smallestinc/lightning-asr-english:latest"
+  imagePullPolicy: IfNotPresent
+  port: 2269
+  baseUrl: ""
+  podAnnotations: {}
+
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  livenessProbe:
+    initialDelaySeconds: 300
+    periodSeconds: 30
+    timeoutSeconds: 10
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 20
+
+  nodeSelector:
+    nvidia.com/gpu.present: "true"
+
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+
+  labels: []
+
+  resources:
+    limits:
+      memory: 12Gi
+      nvidia.com/gpu: 1
+    requests:
+      nvidia.com/gpu: 1
+      memory: 10Gi
+
+licenseProxy:
+  namePrefix: license-proxy
+  image: "quay.io/smallestinc/license-proxy:latest"
+  imagePullPolicy: IfNotPresent
+  port: 3369
+  baseUrl: ""
+  podAnnotations: {}
+
+  livenessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  service:
+    type: ClusterIP
+
+  resources: {}
+
+  volumeMounts: []
+
+  volumes: []
+
+redis:
+  enabled: true
+  externalHost: ""
+  port: 6379
+  ssl: false
+  auth:
+    enabled: true
+    password: "SmallestSelfHostRedisRandom"
+  master:
+    persistence:
+      enabled: false
+      size: 8Gi
+  replica:
+    replicaCount: 1
+    persistence:
+      enabled: false
+      size: 8Gi

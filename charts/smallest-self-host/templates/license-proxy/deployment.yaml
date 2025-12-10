@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.licenseProxy.namePrefix }}
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.licenseProxy.namePrefix }}
+spec:
+  replicas: {{ .Values.scaling.replicas.licenseProxy | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.licenseProxy.namePrefix }}
+      {{- include "smallest-self-host.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.licenseProxy.namePrefix }}
+        {{- include "smallest-self-host.selectorLabels" . | nindent 8 }}
+      {{- with .Values.licenseProxy.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if or .Values.global.pullSecretRef .Values.global.imageCredentials.create }}
+      imagePullSecrets:
+      - name: {{ .Values.global.pullSecretRef | default (printf "%s-registry" (include "smallest-self-host.fullname" .)) }}
+      {{- end }}
+      containers:
+      - name: {{ .Values.licenseProxy.namePrefix }}
+        image: {{ .Values.licenseProxy.image }}
+        imagePullPolicy: {{ .Values.licenseProxy.imagePullPolicy | default "IfNotPresent" }}
+        env:
+        - name: PORT
+          value: "{{ .Values.licenseProxy.port }}"
+        - name: LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.licenseKeySecretRef | default (printf "%s-license" (include "smallest-self-host.fullname" .)) }}
+              key: license-key
+        ports:
+        - name: http
+          containerPort: {{ .Values.licenseProxy.port }}
+          protocol: TCP
+        {{- if .Values.licenseProxy.resources }}
+        resources:
+          {{- toYaml .Values.licenseProxy.resources | nindent 10 }}
+        {{- end }}
+        {{- if .Values.licenseProxy.volumeMounts }}
+        volumeMounts:
+          {{- toYaml .Values.licenseProxy.volumeMounts | nindent 10 }}
+        {{- end }}
+      {{- if .Values.licenseProxy.volumes }}
+      volumes:
+        {{- toYaml .Values.licenseProxy.volumes | nindent 8 }}
+      {{- end }}
+      restartPolicy: Always
+
