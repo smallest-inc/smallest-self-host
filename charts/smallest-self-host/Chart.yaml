@@ -1,6 +1,6 @@
 apiVersion: v2
 name: smallest-self-host
-description: A Helm chart for Kubernetes
+description: Helm chart for self hosting Smallest AI's TTS and STT Models
 
 # A chart can be either an 'application' or a 'library' chart.
 #
