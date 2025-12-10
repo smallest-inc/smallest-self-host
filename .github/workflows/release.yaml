@@ -23,6 +23,24 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v3
 
+      - name: Add Helm repositories
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+          helm repo add autoscaler https://kubernetes.github.io/autoscaler
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+
+      - name: Update chart dependencies
+        run: |
+          for chart in charts/*/Chart.yaml; do
+            chart_dir=$(dirname "$chart")
+            if [ -f "$chart" ]; then
+              echo "Updating dependencies for $chart_dir"
+              helm dependency update "$chart_dir"
+            fi
+          done
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.6.0
         env:
