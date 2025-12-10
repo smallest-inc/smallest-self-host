@@ -50,35 +50,35 @@ spec:
               key: license-key
         - name: PORT
           value: "{{ .Values.lightningAsr.port }}"
-        # volumeMounts:
-        # - name: config-volume
-        #   mountPath: /etc/config
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
         ports:
         - name: http
           containerPort: {{ .Values.lightningAsr.port }}
           protocol: TCP
-        # livenessProbe:
-        #   httpGet:
-        #     path: /health
-        #     port: {{ .Values.lightningAsr.port }}
-        #   initialDelaySeconds: {{ .Values.lightningAsr.livenessProbe.initialDelaySeconds }}
-        #   periodSeconds: {{ .Values.lightningAsr.livenessProbe.periodSeconds }}
-        #   timeoutSeconds: {{ .Values.lightningAsr.livenessProbe.timeoutSeconds }}
-        # readinessProbe:
-        #   httpGet:
-        #     path: /health
-        #     port: {{ .Values.lightningAsr.port }}
-        #   initialDelaySeconds: {{ .Values.lightningAsr.readinessProbe.initialDelaySeconds }}
-        #   periodSeconds: {{ .Values.lightningAsr.readinessProbe.periodSeconds }}
-        #   timeoutSeconds: {{ .Values.lightningAsr.readinessProbe.timeoutSeconds }}
-        #   failureThreshold: {{ .Values.lightningAsr.readinessProbe.failureThreshold }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.lightningAsr.port }}
+          initialDelaySeconds: {{ .Values.lightningAsr.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.lightningAsr.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.lightningAsr.livenessProbe.timeoutSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.lightningAsr.port }}
+          initialDelaySeconds: {{ .Values.lightningAsr.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.lightningAsr.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.lightningAsr.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.lightningAsr.readinessProbe.failureThreshold }}
         {{- if .Values.lightningAsr.resources }}
         resources:
           {{- toYaml .Values.lightningAsr.resources | nindent 10 }}
         {{- end }}
-      # volumes:
-      # - name: config-volume
-      #   configMap:
-      #     name: {{ .Values.lightningAsr.namePrefix }}-config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: {{ .Values.lightningAsr.namePrefix }}-config
       restartPolicy: Always
 

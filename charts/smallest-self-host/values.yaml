@@ -3,8 +3,6 @@ global:
   outstandingRequestGracePeriod: 30
   # licenseKey and imageCredentials are required for the self-hosted deployment
   licenseKey: ""
-  licenseKeySecretRef: ""
-  imageCredentialsSecretRef: ""
 
   # this will be provided by team, if not, please contact support@smallest.ai
   imageCredentials:
@@ -13,6 +11,10 @@ global:
     username: ""
     password: ""
     email: ""
+
+  # ignore this if you are using the default licenseKey and imageCredentials
+  licenseKeySecretRef: ""
+  imageCredentialsSecretRef: ""
 
 scaling:
   replicaCount: 1
@@ -78,10 +80,10 @@ lightningAsr:
     timeoutSeconds: 10
 
   readinessProbe:
-    initialDelaySeconds: 300
+    initialDelaySeconds: 30
     periodSeconds: 30
     timeoutSeconds: 10
-    failureThreshold: 40
+    failureThreshold: 20
 
   nodeSelector:
     nvidia.com/gpu.present: "true"
