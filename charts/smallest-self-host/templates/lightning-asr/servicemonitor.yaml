@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.lightningAsr.namePrefix }}
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.lightningAsr.namePrefix }}
+    release: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.lightningAsr.namePrefix }}
+      metrics: "true"
+  endpoints:
+  - port: metrics
+    interval: 2s
+    path: /metrics
+

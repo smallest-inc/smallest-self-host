@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.lightningAsr.namePrefix }}-metrics
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.lightningAsr.namePrefix }}
+    metrics: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.lightningAsr.namePrefix }}
+    {{- include "smallest-self-host.selectorLabels" . | nindent 4 }}
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+
