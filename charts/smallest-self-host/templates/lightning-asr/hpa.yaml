@@ -23,26 +23,7 @@ spec:
         type: AverageValue
         averageValue: "{{ .Values.scaling.auto.lightningAsr.hpa.targetActiveRequests }}"
   behavior:
-    scaleUp:
-      stabilizationWindowSeconds: {{ .Values.scaling.auto.lightningAsr.hpa.scaleUpStabilizationWindowSeconds }}
-      policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 15
-      - type: Pods
-        value: 2
-        periodSeconds: 15
-      selectPolicy: Max
-    scaleDown:
-      stabilizationWindowSeconds: {{ .Values.scaling.auto.lightningAsr.hpa.scaleDownStabilizationWindowSeconds }}
-      policies:
-      - type: Percent
-        value: 50
-        periodSeconds: 60
-      - type: Pods
-        value: 1
-        periodSeconds: 60
-      selectPolicy: Min
+    {{- toYaml .Values.scaling.auto.lightningAsr.hpa.behavior | nindent 6 }}
 {{- end }}
 {{- end }}
 
