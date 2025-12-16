@@ -127,16 +127,9 @@ lightningAsr:
     failureThreshold: 20
 
   nodeSelector:
-    node.kubernetes.io/instance-type: g5.xlarge
 
   tolerations:
-    - key: gpu
-      operator: Equal
-      value: "true"
-      effect: NoSchedule
-    - key: nvidia.com/gpu
-      operator: Exists
-      effect: NoSchedule
+  
 
   labels: []
 
