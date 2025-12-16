@@ -6,7 +6,7 @@ metadata:
     {{- include "smallest-self-host.labels" . | nindent 4 }}
     app: {{ .Values.apiServer.namePrefix }}
 spec:
-  replicas: {{ .Values.scaling.replicaCount }}
+  replicas: {{ .Values.scaling.replicas.apiServer }}
   selector:
     matchLabels:
       app: {{ .Values.apiServer.namePrefix }}

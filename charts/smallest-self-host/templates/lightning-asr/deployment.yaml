@@ -57,6 +57,9 @@ spec:
         - name: http
           containerPort: {{ .Values.lightningAsr.port }}
           protocol: TCP
+        - name: prometheus
+          containerPort: 9090
+          protocol: TCP
         livenessProbe:
           httpGet:
             path: /health

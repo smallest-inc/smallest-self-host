@@ -21,6 +21,47 @@ scaling:
   replicas:
     lightningAsr: 1
     licenseProxy: 1
+  auto:
+    enabled: false
+    apiServer:
+      hpa:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 10
+        lightningAsrToApiServerRatio: 2
+        scaleUpStabilizationWindowSeconds: 30
+        scaleDownStabilizationWindowSeconds: 60
+    lightningAsr:
+      servicemonitor:
+        enabled: false
+      hpa:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 10
+        targetActiveRequests: 5
+        scaleUpStabilizationWindowSeconds: 0
+        scaleDownStabilizationWindowSeconds: 300
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: {{ .Values.scaling.auto.lightningAsr.hpa.scaleUpStabilizationWindowSeconds }}
+            policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+            - type: Pods
+              value: 2
+              periodSeconds: 15
+            selectPolicy: Max
+          scaleDown:
+            stabilizationWindowSeconds: {{ .Values.scaling.auto.lightningAsr.hpa.scaleDownStabilizationWindowSeconds }}
+            policies:
+            - type: Percent
+              value: 50
+              periodSeconds: 60
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+            selectPolicy: Min
 
 apiServer:
   namePrefix: api-server
@@ -86,21 +127,16 @@ lightningAsr:
     failureThreshold: 20
 
   nodeSelector:
-    nvidia.com/gpu.present: "true"
 
   tolerations:
-    - key: nvidia.com/gpu
-      operator: Exists
-      effect: NoSchedule
+  
 
   labels: []
 
   resources:
     limits:
       memory: 12Gi
-      nvidia.com/gpu: 1
     requests:
-      nvidia.com/gpu: 1
       memory: 10Gi
 
 licenseProxy:
@@ -148,3 +184,75 @@ redis:
     persistence:
       enabled: false
       size: 8Gi
+
+kube-prometheus-stack:
+  fullnameOverride: "smallest-prometheus-stack"
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+
+  prometheusOperator:
+    enabled: false
+
+  alertmanager:
+    enabled: false
+
+  grafana:
+    enabled: false
+
+  nodeExporter:
+    enabled: false
+
+  kubeStateMetrics:
+    enabled: true
+
+prometheus-adapter:
+  prometheus:
+    url: http://smallest-prometheus-stack-prometheus.default.svc
+    port: 9090
+  rules:
+    default: false
+    custom:
+      - seriesQuery: "asr_active_requests"
+        seriesFilters: []
+        resources:
+          overrides:
+            namespace:
+              resource: namespace
+            pod:
+              resource: pod
+        name:
+          matches: "^(.*)$"
+          as: "${1}"
+        metricsQuery: "asr_active_requests{<<.LabelMatchers>>}"
+    external:
+      - seriesQuery: 'kube_deployment_status_replicas{deployment="lightning-asr"}'
+        metricsQuery: 'sum(kube_deployment_status_replicas{deployment="lightning-asr"})'
+        name:
+          as: "lightning_asr_replica_count"
+        resources:
+          overrides:
+            namespace: { resource: "namespace" }
+
+cluster-autoscaler:
+  # Toggle this to enable or disable node-level autoscaling.
+  # On AWS EKS this must be enabled explicitly.
+  # (On GKE, autoscaling is usually configured during cluster creation.)
+  enabled: false
+
+  rbac:
+    serviceAccount:
+      # ServiceAccount used by Cluster Autoscaler to interact with AWS APIs
+      # Required
+      name: cluster-autoscaler-sa
+      annotations:
+        # IAM role ARN for the Cluster Autoscaler
+        # Required
+        eks.amazonaws.com/role-arn: ""
+
+  autoDiscovery:
+    # Required
+    clusterName:
+
+  # Required
+  awsRegion:
