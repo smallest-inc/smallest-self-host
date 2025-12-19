@@ -1,0 +1,24 @@
+{{- if .Values.models.volumes.aws.efs.enabled }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.models.volumes.aws.efs.namePrefix }}-aws-efs-pv
+  labels:
+{{ include "smallest-self-host.labels" . | indent 4}}
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  claimRef:
+    name: {{ .Values.models.volumes.aws.efs.namePrefix }}-aws-efs-pvc
+    namespace: {{ .Release.Namespace }}
+  storageClassName: {{ .Values.models.volumes.aws.efs.namePrefix }}-aws-efs-sc
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - tls
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: {{ required "Missing AWS EFS fileSystemId, see `.models.volumes.aws.efs`" .Values.models.volumes.aws.efs.fileSystemId }}
+{{- end }}

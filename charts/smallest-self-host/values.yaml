@@ -16,11 +16,27 @@ global:
   licenseKeySecretRef: ""
   imageCredentialsSecretRef: ""
 
+# use this if you want to share model volume across multiple pods, this prevents duplicate model downloads
+models:
+  # default model url for lightning-asr
+  # you can change this to the model url you want to use
+  # contact support@smallest.ai to get the model urls
+  asrModelUrl: "https://onprem-public-models.s3.ap-south-1.amazonaws.com/asr/lightning-base-dr-171225.smlst"
+  volumes:
+    aws:
+      efs:
+        enabled: false
+        fileSystemId: ""
+        namePrefix: "models"
+
 scaling:
-  replicaCount: 1
   replicas:
+    # default replica count for lightning-asr
     lightningAsr: 1
+    # default replica count for license-proxy
     licenseProxy: 1
+
+  # use this if you want to enable automatic scaling based on metrics
   auto:
     enabled: false
     apiServer:
@@ -28,12 +44,13 @@ scaling:
         enabled: false
         minReplicas: 1
         maxReplicas: 10
+        # default ratio of lightning-asr to api-server
         lightningAsrToApiServerRatio: 2
         scaleUpStabilizationWindowSeconds: 30
         scaleDownStabilizationWindowSeconds: 60
     lightningAsr:
       servicemonitor:
-        enabled: false
+        enabled: true
       hpa:
         enabled: false
         minReplicas: 1
@@ -104,7 +121,7 @@ apiServer:
 
 lightningAsr:
   namePrefix: lightning-asr
-  image: "quay.io/smallestinc/lightning-asr-english:latest"
+  image: "quay.io/smallestinc/lightning-asr-non-streaming:latest"
   imagePullPolicy: IfNotPresent
   port: 2269
   baseUrl: ""
@@ -126,8 +143,10 @@ lightningAsr:
     timeoutSeconds: 10
     failureThreshold: 20
 
+  # we recommend using nodeSelector to schedule lightning-asr on GPU nodes
   nodeSelector:
 
+  # we recommend using tolerations to allow lightning-asr to run on GPU nodes
   tolerations:
   
 

@@ -53,6 +53,9 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /etc/config
+        - name: models-volume
+          # this should match the path in the configmap, don't change this if you are using the default model path
+          mountPath: /smallest/models
         ports:
         - name: http
           containerPort: {{ .Values.lightningAsr.port }}
@@ -83,5 +86,8 @@ spec:
       - name: config-volume
         configMap:
           name: {{ .Values.lightningAsr.namePrefix }}-config
+      - name: models-volume
+        persistentVolumeClaim:
+          claimName: {{ .Values.models.volumes.aws.efs.namePrefix }}-aws-efs-pvc
       restartPolicy: Always
 
