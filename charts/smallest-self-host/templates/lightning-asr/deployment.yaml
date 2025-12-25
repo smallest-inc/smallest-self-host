@@ -50,12 +50,19 @@ spec:
               key: license-key
         - name: PORT
           value: "{{ .Values.lightningAsr.port }}"
+        - name: REDIS_URL
+          {{- if .Values.redis.externalHost }}
+          value: "redis{{ if .Values.redis.ssl }}s{{ end }}://{{ if .Values.redis.auth.enabled }}:{{ .Values.redis.auth.password }}@{{ end }}{{ .Values.redis.externalHost }}:{{ .Values.redis.port }}"
+          {{- else }}
+          value: "redis{{ if .Values.redis.ssl }}s{{ end }}://{{ if .Values.redis.auth.enabled }}:{{ .Values.redis.auth.password }}@{{ end }}{{ .Release.Name }}-redis-master:{{ .Values.redis.port }}"
+          {{- end }}
         volumeMounts:
         - name: config-volume
           mountPath: /etc/config
+        {{- if .Values.models.volumes.aws.efs.enabled }}
         - name: models-volume
-          # this should match the path in the configmap, don't change this if you are using the default model path
           mountPath: /smallest/models
+        {{- end }}
         ports:
         - name: http
           containerPort: {{ .Values.lightningAsr.port }}
@@ -86,8 +93,10 @@ spec:
       - name: config-volume
         configMap:
           name: {{ .Values.lightningAsr.namePrefix }}-config
+      {{- if .Values.models.volumes.aws.efs.enabled }}
       - name: models-volume
         persistentVolumeClaim:
           claimName: {{ .Values.models.volumes.aws.efs.namePrefix }}-aws-efs-pvc
+      {{- end }}
       restartPolicy: Always
 

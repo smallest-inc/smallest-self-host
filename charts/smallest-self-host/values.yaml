@@ -21,7 +21,7 @@ models:
   # default model url for lightning-asr
   # you can change this to the model url you want to use
   # contact support@smallest.ai to get the model urls
-  asrModelUrl: "https://onprem-public-models.s3.ap-south-1.amazonaws.com/asr/lightning-base-dr-171225.smlst"
+  asrModelUrl: "" # GET THIS FROM SUPPORT
   volumes:
     aws:
       efs:
@@ -121,7 +121,7 @@ apiServer:
 
 lightningAsr:
   namePrefix: lightning-asr
-  image: "quay.io/smallestinc/lightning-asr-non-streaming:latest"
+  image: "quay.io/smallestinc/lightning-asr:latest"
   imagePullPolicy: IfNotPresent
   port: 2269
   baseUrl: ""

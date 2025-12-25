@@ -9,8 +9,9 @@ data:
     [server]
       port = {{ .Values.lightningAsr.port }}
     [model]
-      url = {{ .Values.models.asrModelUrl }}
+      url = "{{ .Values.models.asrModelUrl }}"
       path = "/smallest/models"
       model_name = "{{ .Values.lightningAsr.modelName }}"
+
 
 
