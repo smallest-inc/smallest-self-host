@@ -1,0 +1,129 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Smallest Self-Host",
+  "description": "Deploy Smallest Self-Host with Docker Compose in under 15 minutes",
+  "logo": {
+    "dark": "/docs/logo/logo_dark.png",
+    "light": "/docs/logo/logo_light.png"
+  },
+  "favicon": "/docs/logo/favi.svg",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@smallest.ai"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Website",
+    "url": "https://smallest.ai"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/smallest-inc/smallest-self-host"
+    },
+    {
+      "name": "Contact Support",
+      "icon": "envelope",
+      "url": "mailto:support@smallest.ai"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": ["introduction"]
+    },
+    {
+      "group": "Docker Setup",
+      "pages": [
+        {
+          "group": "STT Deployment",
+          "pages": [
+            "docker/stt/prerequisites",
+            "docker/stt/quick-start",
+            "docker/stt/configuration",
+            "docker/stt/services-overview",
+            "docker/stt/docker-troubleshooting"
+          ]
+        },
+        {
+          "group": "TTS Deployment",
+          "pages": [
+            "docker/tts/prerequisites",
+            "docker/tts/quick-start",
+            "docker/tts/configuration",
+            "docker/tts/services-overview",
+            "docker/tts/docker-troubleshooting"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Kubernetes Setup",
+      "pages": [
+        "kubernetes/prerequisites",
+        "kubernetes/quick-start",
+        {
+          "group": "AWS Deployment",
+          "pages": [
+            "kubernetes/aws/eks-setup",
+            "kubernetes/aws/iam-irsa",
+            "kubernetes/aws/gpu-nodes"
+          ]
+        },
+        {
+          "group": "Storage & PVC",
+          "pages": [
+            "kubernetes/storage/efs-configuration",
+            "kubernetes/storage/model-storage",
+            "kubernetes/storage/redis-persistence"
+          ]
+        },
+        {
+          "group": "Autoscaling",
+          "pages": [
+            "kubernetes/autoscaling/hpa-configuration",
+            "kubernetes/autoscaling/cluster-autoscaler",
+            "kubernetes/autoscaling/metrics-setup",
+            "kubernetes/autoscaling/grafana-dashboards"
+          ]
+        },
+        "kubernetes/license-proxy",
+        "kubernetes/k8s-troubleshooting"
+      ]
+    },
+    {
+      "group": "Troubleshooting",
+      "pages": [
+        "troubleshooting/common-issues",
+        "troubleshooting/debugging-guide",
+        "troubleshooting/logs-analysis"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/smallest-inc",
+    "website": "https://smallest.ai"
+  },
+  "feedback": {
+    "thumbsRating": true,
+    "suggestEdit": true,
+    "raiseIssue": true
+  }
+}
