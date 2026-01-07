@@ -99,7 +99,7 @@ licenseProxy:
 
 License Proxy requires outbound access to:
 
-- **Host**: `license.smallest.ai`
+- **Host**: `console-api.smallest.ai`
 - **Port**: `443` (HTTPS)
 - **Protocol**: HTTPS/TLS 1.2+
 
@@ -114,7 +114,7 @@ Test from within the cluster:
 ```bash
 kubectl run test-connectivity --rm -it --restart=Never \
   --image=curlimages/curl \
-  -- curl -v https://license.smallest.ai
+  -- curl -v https://console-api.smallest.ai
 ```
 
 Expected: HTTP 200 or 404 (endpoint exists, but requires valid request)
@@ -155,7 +155,7 @@ spec:
 
 1. License Proxy starts
 2. Reads `LICENSE_KEY` from environment
-3. Connects to `license.smallest.ai`
+3. Connects to `console-api.smallest.ai`
 4. Validates key and receives terms
 5. Caches validation locally
 6. Starts serving on port 3369
@@ -220,7 +220,7 @@ Successful startup logs:
 ```
 INFO: Starting License Proxy v1.0.0
 INFO: License key loaded
-INFO: Connecting to license.smallest.ai
+INFO: Connecting to console-api.smallest.ai
 INFO: License validated successfully
 INFO: License valid until: 2025-12-31
 INFO: Grace period: 24 hours
@@ -286,7 +286,7 @@ kubectl logs -l app=license-proxy -n smallest --tail=50
     **Error**: `Connection refused` or `Timeout`
     
     **Solution**:
-    - Test connectivity: `curl https://license.smallest.ai`
+    - Test connectivity: `curl https://console-api.smallest.ai`
     - Check firewall/security group rules
     - Verify DNS resolution
     - Check proxy settings if applicable
@@ -470,7 +470,7 @@ licenseProxy:
     ```bash
     kubectl run connectivity-test --rm -it --restart=Never \
       --image=curlimages/curl \
-      -- curl -v https://license.smallest.ai
+      -- curl -v https://console-api.smallest.ai
     ```
   </Accordion>
 

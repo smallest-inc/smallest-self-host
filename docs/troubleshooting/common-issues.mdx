@@ -33,7 +33,7 @@ This guide provides quick solutions to the most common issues encountered with S
     Contact license server directly:
     
     ```bash
-    curl -H "Authorization: Bearer ${LICENSE_KEY}" https://license.smallest.ai/validate
+    curl -H "Authorization: Bearer ${LICENSE_KEY}" https://console-api.smallest.ai/validate
     ```
   </Step>
 
@@ -370,12 +370,12 @@ Response will include:
 
 1. **Test connectivity**:
    ```bash
-   curl -v https://license.smallest.ai
+   curl -v https://console-api.smallest.ai
    ```
 
 2. **Check firewall rules**:
    - Allow outbound HTTPS (port 443)
-   - Whitelist `license.smallest.ai`
+   - Whitelist `console-api.smallest.ai`
 
 3. **Review network policies** (Kubernetes):
    ```bash

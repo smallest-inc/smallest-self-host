@@ -191,7 +191,7 @@ INFO: Status: 200 OK
 ```log
 INFO: Starting License Proxy v1.0.0
 INFO: License key loaded
-INFO: Connecting to license.smallest.ai
+INFO: Connecting to console-api.smallest.ai
 INFO: License validated successfully
 INFO: License valid until: 2025-12-31T23:59:59Z
 INFO: Grace period: 24 hours
@@ -227,7 +227,7 @@ INFO: Usage reported successfully
 
   <Accordion title="Connection Failed" icon="network-wired">
     ```log
-    WARNING: Connection to license.smallest.ai failed
+    WARNING: Connection to console-api.smallest.ai failed
     WARNING: Connection timeout after 10s
     INFO: Using cached validation
     INFO: Grace period active (23h remaining)
@@ -236,7 +236,7 @@ INFO: Usage reported successfully
     **Cause**: Network connectivity issue
     
     **Solution**:
-    - Test: `curl https://license.smallest.ai`
+    - Test: `curl https://console-api.smallest.ai`
     - Check firewall allows HTTPS
     - Restore connectivity before grace period expires
   </Accordion>
