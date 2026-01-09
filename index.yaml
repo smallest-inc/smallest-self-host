@@ -3,6 +3,37 @@ entries:
   smallest-self-host:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-01-09T06:50:03.247282293Z"
+    dependencies:
+    - condition: redis.enabled
+      name: redis
+      repository: https://charts.bitnami.com/bitnami
+      version: ^24.0.0
+    - condition: gpu-operator.enabled
+      name: gpu-operator
+      repository: https://helm.ngc.nvidia.com/nvidia
+      version: ^24.3.0
+    - condition: cluster-autoscaler.enabled
+      name: cluster-autoscaler
+      repository: https://kubernetes.github.io/autoscaler
+      version: ^9.37.0
+    - condition: kube-prometheus-stack.includeDependency,scaling.auto.enabled
+      name: kube-prometheus-stack
+      repository: https://prometheus-community.github.io/helm-charts
+      version: ^60.2.0
+    - condition: prometheus-adapter.includeDependency,scaling.auto.enabled
+      name: prometheus-adapter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: ^4.10.0
+    description: Helm chart for self hosting Smallest AI's TTS and STT Models
+    digest: e22715d2f72d6086f3a8e8d452f52073483724c4745e07329b881c5889bac6a8
+    name: smallest-self-host
+    type: application
+    urls:
+    - https://github.com/smallest-inc/smallest-self-host/releases/download/smallest-self-host-0.2.1/smallest-self-host-0.2.1.tgz
+    version: 0.2.1
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2026-01-07T08:32:22.067375478Z"
     dependencies:
     - condition: redis.enabled
@@ -94,4 +125,4 @@ entries:
     urls:
     - https://github.com/smallest-inc/smallest-self-host/releases/download/smallest-self-host-0.1.0/smallest-self-host-0.1.0.tgz
     version: 0.1.0
-generated: "2026-01-07T08:32:22.067387812Z"
+generated: "2026-01-09T06:50:03.247300117Z"
