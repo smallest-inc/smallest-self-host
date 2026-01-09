@@ -1,5 +1,4 @@
 {{- if .Values.scaling.auto.enabled }}
-{{- if .Values.scaling.auto.lightningAsr.servicemonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -17,6 +16,5 @@ spec:
   - port: metrics
     interval: 2s
     path: /metrics
-{{- end }}
 {{- end }}
 

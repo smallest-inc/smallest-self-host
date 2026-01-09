@@ -10,6 +10,10 @@ services:
       - LICENSE_KEY=${LICENSE_KEY}
       - REDIS_URL=redis://redis:6379
       - PORT=2233 # 8876 for streaming
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # - REDIS_USERNAME=
+      # - REDIS_PASSWORD=
     deploy:
       resources:
         reservations:
@@ -27,6 +31,10 @@ services:
       - LICENSE_KEY=${LICENSE_KEY}
       - LIGHTNING_ASR_BASE_URL=http://lightning-asr:2233
       - API_BASE_URL=http://license-proxy:6699
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # - REDIS_USERNAME=
+      # - REDIS_PASSWORD=
     ports:
       - "7100:7100"
     networks:
@@ -42,6 +50,7 @@ services:
     container_name: license-proxy
     environment:
       - LICENSE_KEY=${LICENSE_KEY}
+      - PORT=3369
     networks:
       - kraken-network
     restart: unless-stopped

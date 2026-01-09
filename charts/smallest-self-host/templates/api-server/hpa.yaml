@@ -1,5 +1,4 @@
 {{- if .Values.scaling.auto.enabled }}
-{{- if .Values.scaling.auto.apiServer.hpa.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -43,6 +42,5 @@ spec:
         value: 1
         periodSeconds: 60
       selectPolicy: Min
-{{- end }}
 {{- end }}
 

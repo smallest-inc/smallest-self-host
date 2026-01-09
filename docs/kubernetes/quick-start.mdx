@@ -72,61 +72,20 @@ scaling:
     licenseProxy: 1
 
 lightningAsr:
+  # we recommend using nodeSelector and tolerations to schedule lightning-asr on GPU nodes
   nodeSelector:
-    node.kubernetes.io/instance-type: g5.xlarge
   tolerations:
-    - key: nvidia.com/gpu
-      operator: Exists
-      effect: NoSchedule
 
 redis:
   enabled: true
   auth:
     enabled: true
-    password: "change-this-secure-password"
 ```
 
 <Warning>
 Replace all placeholder values with actual credentials provided by Smallest.ai support.
 </Warning>
 
-### Adjust GPU Node Selector
-
-Modify the `nodeSelector` to match your GPU node type:
-
-<Tabs>
-  <Tab title="AWS (g5.xlarge)">
-    ```yaml
-    lightningAsr:
-      nodeSelector:
-        node.kubernetes.io/instance-type: g5.xlarge
-    ```
-  </Tab>
-
-  <Tab title="AWS (g5.2xlarge)">
-    ```yaml
-    lightningAsr:
-      nodeSelector:
-        node.kubernetes.io/instance-type: g5.2xlarge
-    ```
-  </Tab>
-
-  <Tab title="Generic GPU Label">
-    ```yaml
-    lightningAsr:
-      nodeSelector:
-        accelerator: nvidia-tesla-a10
-    ```
-  </Tab>
-
-  <Tab title="No Selector">
-    If all nodes have GPUs or you want automatic scheduling:
-    ```yaml
-    lightningAsr:
-      nodeSelector: {}
-    ```
-  </Tab>
-</Tabs>
 
 ## Step 4: Install the Chart
 
