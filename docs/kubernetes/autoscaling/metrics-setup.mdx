@@ -11,17 +11,19 @@ The metrics setup enables autoscaling by collecting Lightning ASR metrics with P
 
 ```mermaid
 graph LR
-    ASR[Lightning ASR] -->|Exports| Metrics[/metrics Endpoint]
-    SM[ServiceMonitor] -->|Discovers| Metrics
-    Prom[Prometheus] -->|Scrapes| SM
-    Prom -->|Stores| TSDB[(Time Series DB)]
-    Adapter[Prometheus Adapter] -->|Queries| Prom
-    HPA[HPA Controller] -->|Gets Metrics| Adapter
+    ASR[Lightning ASR] -->|Exports| Metrics
+    Metrics[/metrics Endpoint/] -->|Discovered By| SM[ServiceMonitor]
+    SM -->|Scraped By| Prom[Prometheus]
+    Prom -->|Queried By| Adapter[Prometheus Adapter]
+    Adapter -->|Supplies Metrics| HPA[HPA Controller]
     HPA -->|Scales| ASR
-    
+
     style Prom fill:#E6522C
     style ASR fill:#0D9373
 ```
+/* The original had a syntax error in Mermaid—edges must connect nodes, not labels. 
+"Metrics" is now a node, and edge directions/names are consistent.
+*/
 
 ## Components
 

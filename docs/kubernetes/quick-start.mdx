@@ -1,57 +1,33 @@
 ---
 title: Quick Start
-description: Deploy Smallest Self-Host on Kubernetes with Helm in under 30 minutes
+description: Deploy Smallest Self-Host on Kubernetes with Helm
 ---
 
 <Warning>
-**Kubernetes deployment is currently only available for ASR (Speech-to-Text).** TTS (Text-to-Speech) Kubernetes support is coming soon. For TTS deployments, please use [Docker](/docker/tts/quick-start).
+Kubernetes deployment is currently available for **ASR (Speech-to-Text)** only. For TTS deployments, use [Docker](/docker/tts/quick-start).
 </Warning>
 
-## Overview
-
-This guide walks you through deploying Smallest Self-Host ASR on Kubernetes using Helm. You'll have a production-ready, auto-scaling speech-to-text service running in under 30 minutes.
-
 <Note>
-Ensure you've completed all [prerequisites](/kubernetes/prerequisites) before starting this guide.
+Ensure you've completed all [prerequisites](/kubernetes/prerequisites) before starting.
 </Note>
 
-## Step 1: Add Helm Repository
-
-Add the Smallest Self-Host Helm repository:
+## Add Helm Repository
 
 ```bash
 helm repo add smallest-self-host https://smallest-inc.github.io/smallest-self-host
 helm repo update
 ```
 
-Verify the chart is available:
-
-```bash
-helm search repo smallest-self-host
-```
-
-Expected output:
-```
-NAME                              CHART VERSION  APP VERSION  DESCRIPTION
-smallest-self-host/smallest-self-host  0.1.1         1.16.0       Helm chart for self hosting Smallest AI's TTS and STT Models
-```
-
-## Step 2: Create Namespace
-
-Create a dedicated namespace for the deployment:
+## Create Namespace
 
 ```bash
 kubectl create namespace smallest
 kubectl config set-context --current --namespace=smallest
 ```
 
-<Tip>
-Using a dedicated namespace makes management easier and provides better isolation.
-</Tip>
+## Configure Values
 
-## Step 3: Configure Values
-
-Create a `values.yaml` file with your credentials:
+Create a `values.yaml` file:
 
 ```yaml values.yaml
 global:
@@ -72,7 +48,6 @@ scaling:
     licenseProxy: 1
 
 lightningAsr:
-  # we recommend using nodeSelector and tolerations to schedule lightning-asr on GPU nodes
   nodeSelector:
   tolerations:
 
@@ -83,13 +58,10 @@ redis:
 ```
 
 <Warning>
-Replace all placeholder values with actual credentials provided by Smallest.ai support.
+Replace placeholder values with credentials provided by Smallest.ai support.
 </Warning>
 
-
-## Step 4: Install the Chart
-
-Install the Helm chart with your custom values:
+## Install
 
 ```bash
 helm install smallest-self-host smallest-self-host/smallest-self-host \
@@ -97,380 +69,155 @@ helm install smallest-self-host smallest-self-host/smallest-self-host \
   --namespace smallest
 ```
 
-<Tabs>
-  <Tab title="Standard Installation">
-    ```bash
-    helm install smallest-self-host smallest-self-host/smallest-self-host \
-      -f values.yaml \
-      --namespace smallest
-    ```
-  </Tab>
-
-  <Tab title="With Autoscaling">
-    Enable autoscaling features:
-    ```bash
-    helm install smallest-self-host smallest-self-host/smallest-self-host \
-      -f values.yaml \
-      --namespace smallest \
-      --set scaling.auto.enabled=true \
-      --set kube-prometheus-stack.prometheus.prometheusSpec.enabled=true \
-      --set kube-prometheus-stack.grafana.enabled=true
-    ```
-  </Tab>
-
-  <Tab title="Dry Run">
-    Test installation without applying:
-    ```bash
-    helm install smallest-self-host smallest-self-host/smallest-self-host \
-      -f values.yaml \
-      --namespace smallest \
-      --dry-run --debug
-    ```
-  </Tab>
-</Tabs>
-
-## Step 5: Monitor Installation
-
-Watch the pods as they start:
+Monitor the deployment:
 
 ```bash
 kubectl get pods -w
 ```
 
-Press `Ctrl+C` to stop watching.
+| Component | Startup Time | Ready Indicator |
+|-----------|--------------|-----------------|
+| Redis | ~30s | `1/1 Running` |
+| License Proxy | ~1m | `1/1 Running` |
+| Lightning ASR | 2-10m | `1/1 Running` (model download on first run) |
+| API Server | ~30s | `1/1 Running` |
 
-### Expected Startup Sequence
+<Tip>
+Model downloads are cached when using shared storage (EFS). Subsequent starts complete in under a minute.
+</Tip>
 
-<Steps>
-  <Step title="Redis (30 seconds)">
-    ```bash
-    kubectl get pods -l app.kubernetes.io/name=redis
-    ```
-    
-    Status should become `Running` and `1/1 Ready`
-  </Step>
-
-  <Step title="License Proxy (1 minute)">
-    ```bash
-    kubectl get pods -l app=license-proxy
-    ```
-    
-    License validation occurs during startup
-  </Step>
-
-  <Step title="Lightning ASR (5-10 minutes)">
-    ```bash
-    kubectl get pods -l app=lightning-asr
-    ```
-    
-    Downloads model (~20 GB) on first run
-    
-    <Tip>
-    Subsequent starts are much faster as models are cached
-    </Tip>
-  </Step>
-
-  <Step title="API Server (30 seconds)">
-    ```bash
-    kubectl get pods -l app=api-server
-    ```
-    
-    Waits for Lightning ASR to be ready
-  </Step>
-</Steps>
-
-### Check Overall Status
+## Verify Installation
 
 ```bash
-kubectl get pods
+kubectl get pods,svc
 ```
 
-Expected output:
-```
-NAME                             READY   STATUS    RESTARTS   AGE
-api-server-xxx                   1/1     Running   0          2m
-license-proxy-xxx                1/1     Running   0          5m
-lightning-asr-xxx                1/1     Running   0          5m
-redis-master-0                   1/1     Running   0          10m
-```
+All pods should show `Running` status with the following services available:
 
-## Step 6: View Logs
+| Service | Port | Description |
+|---------|------|-------------|
+| api-server | 7100 | REST API endpoint |
+| lightning-asr-internal | 2269 | ASR inference service |
+| license-proxy | 3369 | License validation |
+| redis-master | 6379 | Request queue |
 
-Monitor startup progress by viewing logs:
+## Test the API
 
-<Tabs>
-  <Tab title="API Server">
-    ```bash
-    kubectl logs -l app=api-server -f
-    ```
-    
-    Look for: `API server listening on port 7100`
-  </Tab>
-
-  <Tab title="Lightning ASR">
-    ```bash
-    kubectl logs -l app=lightning-asr -f
-    ```
-    
-    Look for: `Server ready on port 2269`
-  </Tab>
-
-  <Tab title="License Proxy">
-    ```bash
-    kubectl logs -l app=license-proxy -f
-    ```
-    
-    Look for: `License validated successfully`
-  </Tab>
-
-  <Tab title="All Services">
-    ```bash
-    kubectl logs -l app.kubernetes.io/instance=smallest-self-host -f --all-containers
-    ```
-  </Tab>
-</Tabs>
-
-## Step 7: Verify Services
-
-Check that all services are created:
-
-```bash
-kubectl get services
-```
-
-Expected output:
-```
-NAME                TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-api-server          ClusterIP   10.100.1.1      <none>        7100/TCP   5m
-license-proxy       ClusterIP   10.100.1.2      <none>        3369/TCP   5m
-lightning-asr       ClusterIP   10.100.1.3      <none>        2269/TCP   5m
-redis-master        ClusterIP   10.100.1.4      <none>        6379/TCP   5m
-```
-
-## Step 8: Test the API
-
-### Port Forward to API Server
-
-Forward the API server port to your local machine:
+Port forward and send a health check:
 
 ```bash
 kubectl port-forward svc/api-server 7100:7100
 ```
 
-Keep this terminal open.
-
-### Send Test Request
-
-In a new terminal, test the API:
-
 ```bash
 curl http://localhost:7100/health
 ```
 
-Expected response:
-```json
-{"status": "healthy"}
+## Autoscaling
+
+Enable automatic scaling based on real-time inference load:
+
+```yaml values.yaml
+scaling:
+  auto:
+    enabled: true
 ```
 
-<Tip>
-For a full transcription test, send an audio file:
+This deploys HorizontalPodAutoscalers that scale based on active requests:
 
-```bash
-curl -X POST http://localhost:7100/v1/listen \
-  -H "Authorization: Token your-license-key-here" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://example.com/sample-audio.wav"
-  }'
+| Component | Metric | Default Target | Behavior |
+|-----------|--------|----------------|----------|
+| Lightning ASR | `asr_active_requests` | 4 per pod | Scales GPU workers based on inference queue depth |
+| API Server | `lightning_asr_replica_count` | 2:1 ratio | Maintains API capacity proportional to ASR workers |
+
+### How It Works
+
+1. **Lightning ASR** exposes `asr_active_requests` metric on port 9090
+2. **Prometheus** scrapes this metric via ServiceMonitor
+3. **Prometheus Adapter** makes it available to the Kubernetes metrics API
+4. **HPA** scales pods when average requests per pod exceeds target
+
+### Configuration
+
+```yaml values.yaml
+scaling:
+  auto:
+    enabled: true
+    lightningAsr:
+      hpa:
+        minReplicas: 1
+        maxReplicas: 10
+        targetActiveRequests: 4
 ```
-</Tip>
 
-## Step 9: Expose the API (Production)
-
-For production use, expose the API server externally:
-
-<Tabs>
-  <Tab title="LoadBalancer (AWS/GCP/Azure)">
-    Update values.yaml:
-    ```yaml
-    apiServer:
-      service:
-        type: LoadBalancer
-        loadBalancerSourceRanges:
-          - "10.0.0.0/8"
-    ```
-    
-    Upgrade the release:
-    ```bash
-    helm upgrade smallest-self-host smallest-self-host/smallest-self-host \
-      -f values.yaml \
-      --namespace smallest
-    ```
-    
-    Get external IP:
-    ```bash
-    kubectl get svc api-server
-    ```
-  </Tab>
-
-  <Tab title="Ingress">
-    Create an ingress resource:
-    ```yaml ingress.yaml
-    apiVersion: networking.k8s.io/v1
-    kind: Ingress
-    metadata:
-      name: smallest-api
-      namespace: smallest
-      annotations:
-        nginx.ingress.kubernetes.io/rewrite-target: /
-    spec:
-      rules:
-      - host: api.smallest.example.com
-        http:
-          paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: api-server
-                port:
-                  number: 7100
-    ```
-    
-    Apply:
-    ```bash
-    kubectl apply -f ingress.yaml
-    ```
-  </Tab>
-
-  <Tab title="NodePort">
-    Update values.yaml:
-    ```yaml
-    apiServer:
-      service:
-        type: NodePort
-        nodePort: 30100
-    ```
-    
-    Upgrade:
-    ```bash
-    helm upgrade smallest-self-host smallest-self-host/smallest-self-host \
-      -f values.yaml \
-      --namespace smallest
-    ```
-    
-    Access via: `http://<node-ip>:30100`
-  </Tab>
-</Tabs>
-
-## Common Installation Issues
-
-<AccordionGroup>
-  <Accordion title="Pods Pending" icon="clock">
-    **Cause**: Insufficient resources or GPU nodes not available
-    
-    **Check**:
-    ```bash
-    kubectl describe pod <pod-name>
-    ```
-    
-    **Solutions**:
-    - Verify GPU nodes exist and have capacity
-    - Check node selectors match your nodes
-    - Ensure tolerations are correct
-  </Accordion>
-
-  <Accordion title="ImagePullBackOff" icon="image">
-    **Cause**: Cannot pull container images
-    
-    **Check**:
-    ```bash
-    kubectl describe pod <pod-name>
-    ```
-    
-    **Solutions**:
-    - Verify imageCredentials are correct
-    - Check image pull secret was created
-    - Test credentials: `docker login quay.io`
-  </Accordion>
-
-  <Accordion title="CrashLoopBackOff" icon="rotate">
-    **Cause**: Container starts but crashes
-    
-    **Check**:
-    ```bash
-    kubectl logs <pod-name> --previous
-    ```
-    
-    **Common causes**:
-    - Invalid license key
-    - Model download failed
-    - Insufficient memory
-  </Accordion>
-
-  <Accordion title="Model Download Slow" icon="download">
-    **Cause**: Large model file (~20 GB)
-    
-    **Solutions**:
-    - Be patient (can take 5-10 minutes)
-    - Use shared volume for models (EFS on AWS)
-    - Monitor progress: `kubectl logs -f <lightning-asr-pod>`
-  </Accordion>
-</AccordionGroup>
-
-## Managing Your Deployment
-
-### Upgrade Deployment
-
-Update values and upgrade:
+### Verify Autoscaling
 
 ```bash
+kubectl get hpa
+```
+
+```
+NAME            REFERENCE                  TARGETS   MINPODS   MAXPODS   REPLICAS
+lightning-asr   Deployment/lightning-asr   0/4       1         10        1
+api-server      Deployment/api-server      1/2       1         10        1
+```
+
+The `TARGETS` column shows `current/target`. When current exceeds target, pods scale up.
+
+<Note>
+Autoscaling requires the Prometheus stack. It's included as a dependency and enabled by default.
+</Note>
+
+## Helm Operations
+
+<CodeGroup>
+
+```bash Upgrade
 helm upgrade smallest-self-host smallest-self-host/smallest-self-host \
-  -f values.yaml \
-  --namespace smallest
+  -f values.yaml -n smallest
 ```
 
-### View Current Configuration
-
-```bash
-helm get values smallest-self-host -n smallest
-```
-
-### Rollback to Previous Version
-
-```bash
+```bash Rollback
 helm rollback smallest-self-host -n smallest
 ```
 
-### Uninstall
-
-Remove the deployment:
-
-```bash
+```bash Uninstall
 helm uninstall smallest-self-host -n smallest
 ```
 
-<Warning>
-This will delete all resources including PersistentVolumeClaims if configured.
-</Warning>
+```bash View Config
+helm get values smallest-self-host -n smallest
+```
 
-## What's Next?
+</CodeGroup>
+
+## Troubleshooting
+
+| Issue | Cause | Resolution |
+|-------|-------|------------|
+| Pods `Pending` | Insufficient resources or missing GPU nodes | Check `kubectl describe pod <name>` for scheduling errors |
+| `ImagePullBackOff` | Invalid registry credentials | Verify `imageCredentials` in values.yaml |
+| `CrashLoopBackOff` | Invalid license or insufficient memory | Check logs with `kubectl logs <pod> --previous` |
+| Slow model download | Large model size (~20GB) | Use shared storage (EFS) for caching |
+
+For detailed troubleshooting, see [Troubleshooting Guide](/kubernetes/k8s-troubleshooting).
+
+## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="AWS Deployment" icon="aws" href="/kubernetes/aws/eks-setup">
-    AWS-specific configuration and optimization
+  <Card title="AWS Setup" icon="aws" href="/kubernetes/aws/eks-setup">
+    EKS-specific configuration
   </Card>
 
-  <Card title="Storage & PVC" icon="hard-drive" href="/kubernetes/storage/model-storage">
-    Configure shared model storage to optimize startup time
+  <Card title="Model Storage" icon="hard-drive" href="/kubernetes/storage/model-storage">
+    Shared storage for faster cold starts
   </Card>
 
-  <Card title="Autoscaling" icon="chart-line" href="/kubernetes/autoscaling/hpa-configuration">
-    Enable horizontal pod autoscaling based on load
+  <Card title="Advanced Autoscaling" icon="chart-line" href="/kubernetes/autoscaling/hpa-configuration">
+    Fine-tune scaling behavior and thresholds
   </Card>
 
   <Card title="Monitoring" icon="chart-bar" href="/kubernetes/autoscaling/grafana-dashboards">
-    Set up Grafana dashboards for observability
+    Grafana dashboards and alerting
   </Card>
 </CardGroup>
-
