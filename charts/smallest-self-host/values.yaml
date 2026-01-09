@@ -51,7 +51,7 @@ scaling:
       hpa:
         minReplicas: 1
         maxReplicas: 10
-        targetActiveRequests: 5
+        targetActiveRequests: 4
         scaleUpStabilizationWindowSeconds: 0
         scaleDownStabilizationWindowSeconds: 300
         behavior:
