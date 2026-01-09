@@ -41,7 +41,6 @@ scaling:
     enabled: false
     apiServer:
       hpa:
-        enabled: false
         minReplicas: 1
         maxReplicas: 10
         # default ratio of lightning-asr to api-server
@@ -49,13 +48,10 @@ scaling:
         scaleUpStabilizationWindowSeconds: 30
         scaleDownStabilizationWindowSeconds: 60
     lightningAsr:
-      servicemonitor:
-        enabled: true
       hpa:
-        enabled: false
         minReplicas: 1
         maxReplicas: 10
-        targetActiveRequests: 5
+        targetActiveRequests: 4
         scaleUpStabilizationWindowSeconds: 0
         scaleDownStabilizationWindowSeconds: 300
         behavior:
@@ -205,19 +201,20 @@ redis:
       size: 8Gi
 
 kube-prometheus-stack:
+  includeDependency: true
   fullnameOverride: "smallest-prometheus-stack"
   prometheus:
     prometheusSpec:
       serviceMonitorSelectorNilUsesHelmValues: false
 
   prometheusOperator:
-    enabled: false
+    enabled: true
 
   alertmanager:
     enabled: false
 
   grafana:
-    enabled: false
+    enabled: true
 
   nodeExporter:
     enabled: false
@@ -226,6 +223,7 @@ kube-prometheus-stack:
     enabled: true
 
 prometheus-adapter:
+  includeDependency: true
   prometheus:
     url: http://smallest-prometheus-stack-prometheus.default.svc
     port: 9090

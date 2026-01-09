@@ -1,5 +1,4 @@
 {{- if .Values.scaling.auto.enabled }}
-{{- if .Values.scaling.auto.lightningAsr.hpa.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -24,6 +23,5 @@ spec:
         averageValue: "{{ .Values.scaling.auto.lightningAsr.hpa.targetActiveRequests }}"
   behavior:
     {{- toYaml .Values.scaling.auto.lightningAsr.hpa.behavior | nindent 6 }}
-{{- end }}
 {{- end }}
 
