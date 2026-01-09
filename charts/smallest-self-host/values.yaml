@@ -225,7 +225,7 @@ kube-prometheus-stack:
 prometheus-adapter:
   includeDependency: true
   prometheus:
-    url: http://smallest-prometheus-stack-prometheus.default.svc
+    url: http://smallest-prometheus-stack-prometheus
     port: 9090
   rules:
     default: false
