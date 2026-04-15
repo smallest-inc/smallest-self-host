@@ -18,10 +18,8 @@ global:
 
 # use this if you want to share model volume across multiple pods, this prevents duplicate model downloads
 models:
-  # default model url for lightning-asr
-  # you can change this to the model url you want to use
-  # contact support@smallest.ai to get the model urls
-  asrModelUrl: "" # GET THIS FROM SUPPORT
+  # DEPRECATED: use lightningAsr.modelUrl instead. This field will be removed in a future version.
+  asrModelUrl: ""
   volumes:
     aws:
       efs:
@@ -33,6 +31,10 @@ scaling:
   replicas:
     # default replica count for lightning-asr
     lightningAsr: 1
+    # default replica count for lightning-tts
+    lightningTts: 1
+    # default replica count for api-server-tts
+    apiServerTts: 1
     # default replica count for license-proxy
     licenseProxy: 1
 
@@ -123,6 +125,9 @@ lightningAsr:
   baseUrl: ""
   podAnnotations: {}
 
+  # model url for lightning-asr, contact support@smallest.ai to get the model url
+  modelUrl: ""
+
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 0
@@ -153,6 +158,88 @@ lightningAsr:
       memory: 12Gi
     requests:
       memory: 10Gi
+
+# ============ TTS STACK ============
+
+lightningTts:
+  namePrefix: lightning-tts
+  image: "quay.io/smallestinc/lightning-v3.1:latest"
+  imagePullPolicy: IfNotPresent
+  port: 8876
+  baseUrl: ""
+  podAnnotations: {}
+
+  # model url for lightning-tts, contact support@smallest.ai to get the model url
+  modelUrl: ""
+
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  livenessProbe:
+    initialDelaySeconds: 300
+    periodSeconds: 30
+    timeoutSeconds: 10
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 20
+
+  # we recommend using nodeSelector to schedule lightning-tts on GPU nodes
+  nodeSelector:
+
+  # we recommend using tolerations to allow lightning-tts to run on GPU nodes
+  tolerations:
+
+  labels: []
+
+  resources:
+    limits:
+      memory: 12Gi
+    requests:
+      memory: 10Gi
+
+apiServerTts:
+  namePrefix: api-server-tts
+  image: "quay.io/smallestinc/self-hosted-api-server:latest"
+  imagePullPolicy: IfNotPresent
+  port: 7100
+  baseUrl: ""
+  host: "0.0.0.0"
+  podAnnotations: {}
+
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  startupProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+
+  service:
+    type: ClusterIP
+    loadBalancerSourceRanges: []
+    externalTrafficPolicy: ""
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 licenseProxy:
   namePrefix: license-proxy

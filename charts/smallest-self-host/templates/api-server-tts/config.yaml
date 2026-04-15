@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.apiServerTts.namePrefix }}-config
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+data:
+  api.toml: |
+    [license_proxy]
+      url = [
+        "http://{{ .Values.licenseProxy.namePrefix }}-internal:{{ .Values.licenseProxy.port}}{{ .Values.licenseProxy.baseUrl }}"
+      ]
+
+    [server]
+      base_url = "{{ .Values.apiServerTts.baseUrl }}"
+      host = "{{ .Values.apiServerTts.host }}"
+      port = {{ .Values.apiServerTts.port }}
+      lightning_v31_base_url = "http://{{ .Values.lightningTts.namePrefix }}-internal:{{ .Values.lightningTts.port}}{{ .Values.lightningTts.baseUrl }}"
+      {{- if .Values.redis.externalHost }}
+      redis_host = "{{ .Values.redis.externalHost }}"
+      {{- else }}
+      redis_host = "{{ .Release.Name }}-redis-master"
+      {{- end }}
+      redis_port = {{ .Values.redis.port }}
+      {{- if .Values.redis.auth.enabled }}
+      redis_password = "{{ .Values.redis.auth.password }}"
+      {{- end }}
+      redis_ssl = {{ .Values.redis.ssl }}
