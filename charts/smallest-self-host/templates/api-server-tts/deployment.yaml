@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.apiServerTts.namePrefix }}
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.apiServerTts.namePrefix }}
+spec:
+  replicas: {{ .Values.scaling.replicas.apiServerTts }}
+  selector:
+    matchLabels:
+      app: {{ .Values.apiServerTts.namePrefix }}
+      {{- include "smallest-self-host.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.apiServerTts.namePrefix }}
+        {{- include "smallest-self-host.selectorLabels" . | nindent 8 }}
+      {{- with .Values.apiServerTts.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if or .Values.global.pullSecretRef .Values.global.imageCredentials.create }}
+      imagePullSecrets:
+      - name: {{ .Values.global.pullSecretRef | default (printf "%s-registry" (include "smallest-self-host.fullname" .)) }}
+      {{- end }}
+      containers:
+      - name: {{ .Values.apiServerTts.namePrefix }}
+        image: {{ .Values.apiServerTts.image }}
+        imagePullPolicy: {{ .Values.apiServerTts.imagePullPolicy }}
+        env:
+        - name: LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.licenseKeySecretRef | default (printf "%s-license" (include "smallest-self-host.fullname" .)) }}
+              key: license-key
+        volumeMounts:
+        - name: api-tts-config-volume
+          mountPath: /etc/config
+        ports:
+        - name: http
+          containerPort: {{ .Values.apiServerTts.port }}
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: {{ .Values.apiServerTts.port }}
+          initialDelaySeconds: {{ .Values.apiServerTts.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiServerTts.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.apiServerTts.livenessProbe.timeoutSeconds }}
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - curl -sf http://localhost:{{ .Values.apiServerTts.port }}/healthz | grep -q "true"
+          initialDelaySeconds: {{ .Values.apiServerTts.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiServerTts.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.apiServerTts.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.apiServerTts.readinessProbe.failureThreshold }}
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: {{ .Values.apiServerTts.port }}
+          initialDelaySeconds: {{ .Values.apiServerTts.startupProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.apiServerTts.startupProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.apiServerTts.startupProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.apiServerTts.startupProbe.failureThreshold }}
+        {{- if .Values.apiServerTts.resources }}
+        resources:
+          {{- toYaml .Values.apiServerTts.resources | nindent 10 }}
+        {{- end }}
+      volumes:
+      - name: api-tts-config-volume
+        configMap:
+          name: {{ .Values.apiServerTts.namePrefix }}-config
+      restartPolicy: Always

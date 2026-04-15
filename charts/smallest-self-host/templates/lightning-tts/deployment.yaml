@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.lightningTts.namePrefix }}
+  labels:
+    {{- include "smallest-self-host.labels" . | nindent 4 }}
+    app: {{ .Values.lightningTts.namePrefix }}
+spec:
+  replicas: {{ .Values.scaling.replicas.lightningTts | default 1 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.lightningTts.updateStrategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.lightningTts.updateStrategy.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: {{ .Values.lightningTts.namePrefix }}
+      {{- include "smallest-self-host.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.lightningTts.namePrefix }}
+        {{- include "smallest-self-host.selectorLabels" . | nindent 8 }}
+      {{- with .Values.lightningTts.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if or .Values.global.pullSecretRef .Values.global.imageCredentials.create }}
+      imagePullSecrets:
+      - name: {{ .Values.global.pullSecretRef | default (printf "%s-registry" (include "smallest-self-host.fullname" .)) }}
+      {{- end }}
+      {{- with .Values.lightningTts.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.lightningTts.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ .Values.lightningTts.namePrefix }}
+        image: {{ .Values.lightningTts.image }}
+        imagePullPolicy: {{ .Values.lightningTts.imagePullPolicy | default "IfNotPresent" }}
+        env:
+        - name: LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.licenseKeySecretRef | default (printf "%s-license" (include "smallest-self-host.fullname" .)) }}
+              key: license-key
+        - name: PORT
+          value: "{{ .Values.lightningTts.port }}"
+        - name: REDIS_HOST
+          {{- if .Values.redis.externalHost }}
+          value: "{{ .Values.redis.externalHost }}"
+          {{- else }}
+          value: "{{ .Release.Name }}-redis-master"
+          {{- end }}
+        - name: REDIS_PORT
+          value: "{{ .Values.redis.port }}"
+        {{- if .Values.redis.auth.enabled }}
+        - name: REDIS_PASSWORD
+          value: "{{ .Values.redis.auth.password }}"
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.lightningTts.port }}
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.lightningTts.port }}
+          initialDelaySeconds: {{ .Values.lightningTts.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.lightningTts.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.lightningTts.livenessProbe.timeoutSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: {{ .Values.lightningTts.port }}
+          initialDelaySeconds: {{ .Values.lightningTts.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.lightningTts.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.lightningTts.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.lightningTts.readinessProbe.failureThreshold }}
+        {{- if .Values.lightningTts.resources }}
+        resources:
+          {{- toYaml .Values.lightningTts.resources | nindent 10 }}
+        {{- end }}
+      restartPolicy: Always
