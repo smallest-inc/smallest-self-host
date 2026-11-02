@@ -1,0 +1,104 @@
+{{- $sel := dict "name" "electron-license-proxy" "root" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-license-proxy
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "electron.selector" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: 8090
+      targetPort: http
+---
+# Exactly one: two would report the same usage twice. A StatefulSet stops the old pod before it starts
+# the new one, and the router and engines ride out the gap (2 minutes and 1 hour of silence).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-license-proxy
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ .Release.Name }}-license-proxy
+  selector:
+    matchLabels:
+      {{- include "electron.selector" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "electron.podLabels" $sel | nindent 8 }}
+      annotations:
+        # A new licence key restarts the license-proxy.
+        electron.smallest.ai/license-key: {{ .Values.global.licenseKey | sha256sum | trunc 12 | quote }}
+    spec:
+      {{- include "electron.pullSecrets" . | nindent 6 }}
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      {{- with .Values.licenseProxy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.licenseProxy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.licenseProxy.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: license-proxy
+          image: {{ include "electron.image" (dict "root" . "name" "license-proxy") }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          env:
+            - name: LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "electron.licenseSecret" . }}
+                  key: license-key
+            - name: ELECTRON_PROXY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "electron.keysSecret" . }}
+                  key: proxy-token
+            - name: ELECTRON_VERSION
+              value: {{ include "electron.version" . | quote }}
+          ports:
+            - name: http
+              containerPort: 8090
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.licenseProxy.resources | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/electron-license
+  volumeClaimTemplates:
+    - metadata:
+        name: state
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.licenseProxy.storage.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.licenseProxy.storage.size }}

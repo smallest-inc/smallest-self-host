@@ -1,0 +1,29 @@
+# One engine: vLLM on one GPU. It gets its bundle's key, and a link to download the bundle once per
+# server, from the license-proxy. Every engine in compose.override.yaml extends it and adds its GPU.
+# `docker compose` never starts this one.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "5"
+
+services:
+  engine:
+    image: ${ELECTRON_ENGINE_IMAGE}
+    restart: unless-stopped
+    # The release's model and settings for this server's GPUs: when an upgrade changes them, the
+    # engines restart to load them; otherwise they keep serving.
+    labels: { ai.smallest.electron.build: "${ELECTRON_ENGINE_BUILD}" }
+    environment:
+      VLLM_API_KEY: ${ELECTRON_VLLM_API_KEY}
+      ELECTRON_PROXY_TOKEN: ${ELECTRON_PROXY_TOKEN}
+    volumes:
+      - bundles:/var/lib/electron
+      - cache:/var/cache/electron
+    # The bundle is decrypted here, in RAM only, and deleted once vLLM has loaded it.
+    tmpfs:
+      - /run/electron:size=${ELECTRON_RAM_SIZE},uid=10001,gid=10001,mode=0700
+    shm_size: 16gb
+    # A stopping engine finishes the replies in progress (up to 90 s), then takes its last billing reading.
+    stop_grace_period: 2m
+    logging: *logging

@@ -1,0 +1,58 @@
+# Electron on one server: a router in front of one engine per GPU, and the license-proxy, the one part
+# that talks to smallest.ai. Run ./electron setup first: it writes .env, and compose.override.yaml with
+# this server's engines, which `docker compose` reads together with this file.
+name: electron
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "5"
+
+services:
+  router:
+    image: ${ELECTRON_ROUTER_IMAGE:?run ./electron setup first}
+    restart: unless-stopped
+    ports:
+      - ${ELECTRON_API_PORT:-8000}:8080
+      # ELECTRON_METRICS_HOST=127.0.0.1 keeps metrics to this server: Docker's ports bypass ufw and firewalld.
+      - ${ELECTRON_METRICS_HOST:-0.0.0.0}:${ELECTRON_METRICS_PORT:-9090}:9090
+    environment:
+      PROVIDER: on-prem
+      ENVIRONMENT: on-prem
+      API_KEY: ${ELECTRON_API_KEY:?run ./electron setup first}
+      VLLM_API_KEY: ${ELECTRON_VLLM_API_KEY:?run ./electron setup first}
+      LICENSE_PROXY_URL: http://license-proxy:8090
+      LICENSE_PROXY_TOKEN: ${ELECTRON_PROXY_TOKEN:?run ./electron setup first}
+      # A slow reply finishes rather than fails: replies may take up to 10 minutes.
+      SICK_AFTER: "0"
+      UPSTREAM_RESPONSE_HEADER_TIMEOUT: 10m
+      # The install's one scrape target, off the API port: README, Monitoring.
+      METRICS_ADDR: ":9090"
+      # On a stop or an upgrade the router finishes the replies in progress first.
+      SHUTDOWN_TIMEOUT: 110s
+    stop_grace_period: 2m
+    logging: *logging
+
+  # Checks the licence with smallest.ai every 2 minutes and reports the tokens served. It alone holds
+  # the licence key; the router and engines reach it with ELECTRON_PROXY_TOKEN.
+  license-proxy:
+    image: ${ELECTRON_LICENSE_PROXY_IMAGE}
+    restart: unless-stopped
+    environment:
+      LICENSE_KEY: ${ELECTRON_LICENSE_KEY:?run ./electron setup first}
+      ELECTRON_PROXY_TOKEN: ${ELECTRON_PROXY_TOKEN}
+      # The release this install runs: the license server hands the engines its model and settings.
+      ELECTRON_VERSION: ${ELECTRON_VERSION}
+    volumes:
+      - licence:/var/lib/electron-license
+    logging: *logging
+
+volumes:
+  # The install's id, and usage not yet acknowledged by smallest.ai; it survives restarts and upgrades.
+  licence:
+  # The server's bundles, downloaded once and shared by its engines.
+  bundles:
+  # vLLM's compiled kernels and graphs (no weights). Kept between boots, they cut each engine's
+  # load from about 4 minutes to 1.5. Engines load one at a time, so they never write it at once.
+  cache:
