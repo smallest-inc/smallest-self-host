@@ -1,0 +1,292 @@
+{{- $sel := dict "name" "electron-router" "root" . }}
+{{- $kube := eq .Values.router.discovery "kubernetes" }}
+{{- if not (has .Values.router.discovery (list "kubernetes" "static")) }}{{ fail (printf "router.discovery %q: kubernetes or static" .Values.router.discovery) }}{{ end }}
+{{- if $kube }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-router
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-router
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+rules:
+  # The router watches the engine pods, and reads how many there should be from their StatefulSet.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-router
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-router
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Release.Name }}-router
+    namespace: {{ .Release.Namespace }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-router
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+  {{- with .Values.router.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.router.service.type }}
+  {{- with .Values.router.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    {{- include "electron.selector" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.router.service.port }}
+      targetPort: http
+---
+# The install's metrics, apart from the API Service, which may be public.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-metrics
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+spec:
+  selector:
+    {{- include "electron.selector" $sel | nindent 4 }}
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+---
+# One router: its prefix index and in-flight counts are per process. An upgrade starts the new router,
+# waits until it serves, then retires the old one, which keeps accepting while the Service drops it and
+# finishes its live streams; conversations keep their engine through the saved sessions.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-router
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  # The new router has found the engines and loaded the sessions before the old one is retired.
+  minReadySeconds: 5
+  selector:
+    matchLabels:
+      {{- include "electron.selector" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "electron.podLabels" $sel | nindent 8 }}
+      annotations:
+        # A new apiKey restarts the router, the one part that reads it.
+        electron.smallest.ai/api-key: {{ .Values.apiKey | sha256sum | trunc 12 | quote }}
+    spec:
+      {{- include "electron.pullSecrets" . | nindent 6 }}
+      enableServiceLinks: false
+      {{- if $kube }}
+      serviceAccountName: {{ .Release.Name }}-router
+      {{- else }}
+      automountServiceAccountToken: false
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      {{- with .Values.router.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.router.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.router.affinity }}
+      affinity:
+        {{- toYaml .Values.router.affinity | nindent 8 }}
+      {{- else if .Values.router.sessionHandover.enabled }}
+      # The new router lands beside the old one when it can, to read the sessions it saved there.
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "electron.selector" $sel | nindent 20 }}
+      {{- end }}
+      # Above SHUTDOWN_DELAY and SHUTDOWN_TIMEOUT together.
+      terminationGracePeriodSeconds: 630
+      {{- if .Values.router.sessionHandover.enabled }}
+      initContainers:
+        # The router runs as uid 65532; a directory the cluster creates starts out root's.
+        - name: directories
+          image: {{ include "electron.initImage" . }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          command: ["chown", "65532:65532", "/sessions"]
+          securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
+          volumeMounts:
+            - name: sessions
+              mountPath: /sessions
+      {{- end }}
+      containers:
+        - name: router
+          image: {{ include "electron.image" (dict "root" . "name" "router") }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          env:
+            - name: PROVIDER
+              value: on-prem
+            - name: ENVIRONMENT
+              value: on-prem
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "electron.keysSecret" . }}
+                  key: api-key
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "electron.keysSecret" . }}
+                  key: vllm-api-key
+            - name: LICENSE_PROXY_URL
+              value: {{ include "electron.licenseProxyURL" . }}
+            - name: LICENSE_PROXY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "electron.keysSecret" . }}
+                  key: proxy-token
+            {{- if $kube }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_SELECTOR
+              value: app.kubernetes.io/name=electron-engine,app.kubernetes.io/instance={{ .Release.Name }}
+            {{- else }}
+            - name: DNS_DISCOVERY
+              value: {{ $list := list }}{{ range $i, $_ := until (int .Values.engines.count) }}{{ $list = append $list (printf "%s-engine-%d.%s-engine:8000" $.Release.Name $i $.Release.Name) }}{{ end }}{{ join ";" $list | quote }}
+            {{- end }}
+            # A slow reply finishes rather than fails: replies may take 10 minutes, and no engine is
+            # set aside for being slow. Size the GPUs for the load.
+            - name: SICK_AFTER
+              value: "0"
+            - name: UPSTREAM_RESPONSE_HEADER_TIMEOUT
+              value: 10m
+            # Keeps accepting while the Service drops the pod (the image has no shell for a preStop
+            # hook), then finishes live streams.
+            # One scrape target for the whole install, off the API port: see the README's Monitoring.
+            - name: METRICS_ADDR
+              value: ":9090"
+            - name: SHUTDOWN_DELAY
+              value: 5s
+            - name: SHUTDOWN_TIMEOUT
+              value: 600s
+            {{- if .Values.router.sessionHandover.enabled }}
+            - name: SESSION_SNAPSHOT_PATH
+              value: /var/lib/electron-router/sessions.json
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          # Process-level on purpose: while the engines load or the licence stops them, the router must
+          # stay reachable to say so.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.router.resources | nindent 12 }}
+          {{- if .Values.router.sessionHandover.enabled }}
+          volumeMounts:
+            - name: sessions
+              mountPath: /var/lib/electron-router
+          {{- end }}
+      {{- if .Values.router.sessionHandover.enabled }}
+      volumes:
+        - name: sessions
+          hostPath:
+            path: {{ .Values.router.sessionHandover.path }}/{{ .Release.Namespace }}-{{ .Release.Name }}
+            type: DirectoryOrCreate
+      {{- end }}
+{{- if .Values.router.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-router
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+  {{- with .Values.router.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.router.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.router.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - {{- with .Values.router.ingress.host }}
+      host: {{ . }}
+      {{- end }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-router
+                port:
+                  name: http
+{{- end }}

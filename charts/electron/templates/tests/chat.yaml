@@ -1,0 +1,53 @@
+# helm test: one short chat request through the router, as an app would send it. It runs on the engine
+# image, which the GPU nodes already hold, and asks for no GPU.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-test-chat
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  enableServiceLinks: false
+  {{- include "electron.pullSecrets" . | nindent 2 }}
+  {{- with .Values.engines.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.engines.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  containers:
+    - name: chat
+      image: {{ include "electron.image" (dict "root" . "name" "engine") }}
+      imagePullPolicy: {{ .Values.images.pullPolicy }}
+      command:
+        - python3
+        - -c
+        - |
+          import json, os, urllib.request
+          req = urllib.request.Request(
+              "http://{{ .Release.Name }}-router:{{ .Values.router.service.port }}/v1/chat/completions",
+              data=json.dumps({"model": "electron", "max_tokens": 16,
+                               "messages": [{"role": "user", "content": "Say hello in five words."}]}).encode(),
+              headers={"Content-Type": "application/json", "Authorization": "Bearer " + os.environ["API_KEY"]})
+          try:
+              reply = json.load(urllib.request.urlopen(req, timeout=120))
+          except urllib.error.HTTPError as e:
+              raise SystemExit(f"{e.code}: {e.read().decode()}")
+          print("Electron answered:", reply["choices"][0]["message"]["content"])
+          print("usage:", reply["usage"])
+      env:
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "electron.keysSecret" . }}
+              key: api-key
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi

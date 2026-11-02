@@ -1,0 +1,4 @@
+# Written by ./electron setup for one server; .env holds its keys.
+.env
+compose.override.yaml
+.upgrading

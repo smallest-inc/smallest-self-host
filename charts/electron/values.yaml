@@ -1,0 +1,124 @@
+# Electron on your own GPUs: one engine per GPU, a router in front of them, and the license-proxy that
+# checks the licence with smallest.ai and reports the tokens served. README.md walks through an install.
+
+global:
+  # From the smallest.ai console: Settings, then Licenses. Or name a Secret you made, with key license-key.
+  licenseKey: ""
+  licenseKeySecretRef: ""
+  # quay.io credentials from smallest.ai. Or name a kubernetes.io/dockerconfigjson Secret you made.
+  imageCredentials:
+    create: true
+    registry: quay.io
+    username: ""
+    password: ""
+    email: ""
+  imageCredentialsSecretRef: ""
+
+# The Electron version is the chart's: each chart version installs one Electron release, its images
+# pinned by digest. helm upgrade to a newer chart restarts only what that release changed.
+images:
+  # A registry you mirror the images to, like registry.example.com/smallestinc. The images keep their
+  # names, tags and digests.
+  registry: ""
+  # Prepares the router's session directory on its node; the router image has no shell.
+  init: docker.io/library/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+  pullPolicy: IfNotPresent
+
+# The key your apps send with every request: Authorization: Bearer <key>. Left empty, the chart
+# generates one and keeps it across upgrades (NOTES.txt shows how to read it).
+apiKey: ""
+# Or name a Secret you made with keys api-key, vllm-api-key and proxy-token (at least 32 characters
+# each for the last two). Needed where the chart can't read the cluster while rendering, as with
+# Argo CD, or the generated keys would change on every sync.
+keysSecretRef: ""
+
+engines:
+  # One engine per GPU.
+  count: 1
+  # The GPU type every engine runs on: H100, H200 or RTX PRO 6000. One type per release. It sizes each
+  # engine's memory: the model is decrypted into RAM while it loads.
+  gpu: H200
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Some clusters run GPU pods under a runtime class, such as nvidia (k3s does).
+  runtimeClassName: ""
+  # Memory and CPU for each engine; the GPU is always one. Empty sizes them from the GPU type.
+  resources: {}
+
+  # Where the model is kept. It is downloaded once per place it is kept:
+  #   node       a directory on each node, shared by that node's engines (one download per node)
+  #   perEngine  a volume for each engine, from a StorageClass (one download per engine)
+  #   shared     a ReadWriteMany volume you made, shared by every engine (one download in all). Its file
+  #              locks must work: EFS, NFSv4 or CephFS, not NFS mounted with nolock.
+  storage:
+    mode: node
+    node:
+      path: /var/lib/smallest/electron
+    perEngine:
+      storageClass: ""
+      size: 100Gi
+    shared:
+      claimName: ""
+
+  # Engines on a node load one at a time, so its RAM holds one decrypted copy of the model at most. The
+  # lock is a directory on each node; set enabled to false where pods may not mount host directories.
+  loadLock:
+    enabled: true
+    path: /var/lib/smallest/electron-lock
+
+router:
+  service:
+    type: ClusterIP
+    port: 8000
+    annotations: {}
+    loadBalancerSourceRanges: []
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: ""
+    tls: []
+  # kubernetes: the router watches the engine pods (a Role lets it read pods and StatefulSets in this
+  # namespace). static: a fixed list of the engines, for clusters that grant no Role.
+  discovery: kubernetes
+  # Live conversations keep their engine, and its cache, across a router upgrade: the router saves them to
+  # a directory on its node, and the new router, placed on the same node when it can, picks them up.
+  sessionHandover:
+    enabled: true
+    path: /var/lib/smallest/electron-router
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+# The install's metrics: one endpoint on the <release>-metrics Service, port 9090, with the router's,
+# each engine's (vLLM's own, labelled electron_engine) and the licence's. README.md lists them; the
+# dashboard is grafana/dashboards/electron-dashboard.json in this repository.
+metrics:
+  # A ServiceMonitor for the Prometheus Operator (kube-prometheus-stack). labels are what its Prometheus
+  # selects ServiceMonitors by, such as release: <its release name>.
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+licenseProxy:
+  # Its state (the install's id, and usage not yet acknowledged by smallest.ai) must survive restarts.
+  storage:
+    storageClass: ""
+    size: 1Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi

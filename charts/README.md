@@ -2,6 +2,8 @@
 
 Deploy Smallest AI's Speech-to-Text (STT) models on Kubernetes with GPU acceleration.
 
+Electron, smallest.ai's voice-agent LLM, has its own chart: [electron/README.md](electron/README.md).
+
 ## Quick Start
 
 ### Prerequisites

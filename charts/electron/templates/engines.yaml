@@ -1,0 +1,220 @@
+{{- $sel := dict "name" "electron-engine" "root" . }}
+{{- $mode := .Values.engines.storage.mode }}
+{{- if not (has $mode (list "node" "perEngine" "shared")) }}{{ fail (printf "engines.storage.mode %q: node, perEngine or shared" $mode) }}{{ end }}
+{{- $ram := include "electron.modelRAM" . }}
+# Stable names for the engines (engine-0, engine-1, ...), which the router's static discovery lists.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-engine
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "electron.selector" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-engine
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "electron.selector" $sel | nindent 6 }}
+---
+# One engine per GPU. It waits for the licence, downloads the model once per place it is kept, and
+# loads it; an upgrade replaces the engines one at a time.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-engine
+  labels:
+    {{- include "electron.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.engines.count }}
+  serviceName: {{ .Release.Name }}-engine
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      {{- include "electron.selector" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "electron.podLabels" $sel | nindent 8 }}
+        electron.smallest.ai/role: decode
+      annotations:
+        # The family's build and vLLM settings, which the engines get from the license server: an
+        # upgrade that changes them restarts the engines, one at a time.
+        electron.smallest.ai/build: {{ index (include "electron.release" . | fromJson).engineBuilds (include "electron.family" .) | quote }}
+    spec:
+      {{- include "electron.pullSecrets" . | nindent 6 }}
+      # No variables for the namespace's Services: one named electron would set ELECTRON_PORT.
+      enableServiceLinks: false
+      {{- with .Values.engines.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        fsGroup: 10001
+      {{- with .Values.engines.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.engines.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.engines.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Stopping takes a last reading of vLLM's token counts before vLLM goes, so what was served is billed.
+      terminationGracePeriodSeconds: 120
+      initContainers:
+        # The engine runs as uid 10001; a directory the cluster creates starts out root's.
+        - name: directories
+          image: {{ include "electron.image" (dict "root" . "name" "engine") }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - mkdir -p /store/bundles "/store/cache{{ if eq $mode "shared" }}/$ELECTRON_ENGINE_ID{{ end }}" && chown 10001:10001 /store/bundles "/store/cache{{ if eq $mode "shared" }}/$ELECTRON_ENGINE_ID{{ end }}"{{ if .Values.engines.loadLock.enabled }} && chown 10001:10001 /lock{{ end }}
+          env:
+            - name: ELECTRON_ENGINE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: store
+              mountPath: /store
+            {{- if .Values.engines.loadLock.enabled }}
+            - name: load-lock
+              mountPath: /lock
+            {{- end }}
+      containers:
+        - name: engine
+          image: {{ include "electron.image" (dict "root" . "name" "engine") }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          env:
+            # Names the engine's file of usage not yet confirmed, so whichever pod runs as it next sends it.
+            - name: ELECTRON_ENGINE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ELECTRON_LICENSE_PROXY
+              value: {{ include "electron.licenseProxyURL" . }}
+            - name: ELECTRON_PROXY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "electron.keysSecret" . }}
+                  key: proxy-token
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "electron.keysSecret" . }}
+                  key: vllm-api-key
+            {{- if .Values.engines.loadLock.enabled }}
+            - name: ELECTRON_LOAD_LOCK_DIR
+              value: /var/lib/electron-lock
+            {{- else }}
+            - name: ELECTRON_LOAD_LOCK_DIR
+              value: /run/electron-lock
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+            - name: kv-events
+              containerPort: 5556
+          # Ready while vLLM serves. No liveness probe: the engine waits for its licence and its download
+          # for as long as they take, and restarts vLLM itself if it dies.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+          resources:
+            {{- with .Values.engines.resources }}
+            {{- $r := deepCopy . }}
+            {{- $_ := set $r "limits" (merge (dict "nvidia.com/gpu" 1) ($r.limits | default dict)) }}
+            {{- toYaml $r | nindent 12 }}
+            {{- else }}
+            requests:
+              cpu: "8"
+              memory: {{ add 32 (trimSuffix "Gi" $ram) }}Gi
+              nvidia.com/gpu: 1
+            limits:
+              memory: {{ add 64 (trimSuffix "Gi" $ram) }}Gi
+              nvidia.com/gpu: 1
+            {{- end }}
+          volumeMounts:
+            - name: store
+              mountPath: /var/lib/electron
+              subPath: bundles
+            - name: store
+              mountPath: /var/cache/electron
+              {{- if eq $mode "shared" }}
+              subPathExpr: cache/$(ELECTRON_ENGINE_ID)
+              {{- else }}
+              subPath: cache
+              {{- end }}
+            - name: load-lock
+              mountPath: {{ if .Values.engines.loadLock.enabled }}/var/lib/electron-lock{{ else }}/run/electron-lock{{ end }}
+            # The model is decrypted here, in RAM only, and deleted once vLLM has loaded it.
+            - name: work
+              mountPath: /run/electron
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        {{- if eq $mode "node" }}
+        - name: store
+          hostPath:
+            path: {{ .Values.engines.storage.node.path }}
+            type: DirectoryOrCreate
+        {{- else if eq $mode "shared" }}
+        - name: store
+          persistentVolumeClaim:
+            claimName: {{ required "engines.storage.shared.claimName: name the ReadWriteMany volume the engines share" .Values.engines.storage.shared.claimName }}
+        {{- end }}
+        - name: load-lock
+          {{- if .Values.engines.loadLock.enabled }}
+          hostPath:
+            path: {{ .Values.engines.loadLock.path }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: work
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ $ram }}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Gi
+  {{- if eq $mode "perEngine" }}
+  volumeClaimTemplates:
+    - metadata:
+        name: store
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.engines.storage.perEngine.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.engines.storage.perEngine.size }}
+  {{- end }}

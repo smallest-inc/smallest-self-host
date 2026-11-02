@@ -1,0 +1,32 @@
+Electron {{ include "electron.version" . }} is starting: {{ .Values.engines.count }} engine(s) on {{ .Values.engines.gpu }}, model kept {{ if eq .Values.engines.storage.mode "node" }}on each node{{ else if eq .Values.engines.storage.mode "perEngine" }}per engine{{ else }}on the shared volume{{ end }}.
+
+The first start downloads the model (about 35 GB) and loads it, which takes 15 to 20 minutes; later starts take a few.
+
+Watch the engines become ready:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+What an engine is doing (waiting for the licence, downloading, loading):
+  kubectl -n {{ .Release.Namespace }} logs {{ .Release.Name }}-engine-0 | grep level=
+
+Your API key:
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "electron.keysSecret" . }} -o jsonpath='{.data.api-key}' | base64 -d; echo
+
+The API, from inside the cluster:
+  http://{{ .Release.Name }}-router.{{ .Release.Namespace }}.svc:{{ .Values.router.service.port }}/v1
+{{- if .Values.router.ingress.enabled }}
+and through the Ingress at {{ .Values.router.ingress.host | default "your ingress address" }}.
+{{- else if eq .Values.router.service.type "LoadBalancer" }}
+and at the load balancer's address:
+  kubectl -n {{ .Release.Namespace }} get svc {{ .Release.Name }}-router
+{{- end }}
+
+The licence and the engines, as the router sees them:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-router 8000:{{ .Values.router.service.port }} &
+  API_KEY=$(kubectl -n {{ .Release.Namespace }} get secret {{ include "electron.keysSecret" . }} -o jsonpath='{.data.api-key}' | base64 -d)
+  curl -s localhost:8000/status -H "Authorization: Bearer $API_KEY"
+
+Metrics for Prometheus, one scrape target for the whole install (README.md, Monitoring):
+  http://{{ .Release.Name }}-metrics.{{ .Release.Namespace }}.svc:9090/metrics
+
+Check that it answers (one short chat request):
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
