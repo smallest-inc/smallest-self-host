@@ -1,0 +1,12 @@
+{
+  "version": "0.1",
+  "images": {
+    "engine": "quay.io/smallestinc/electron-engine:0.1@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "license-proxy": "quay.io/smallestinc/electron-license-proxy:0.1@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "router": "quay.io/smallestinc/electron-router:0.1@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "engineBuilds": {
+    "hopper": "000000000000",
+    "rtx": "000000000000"
+  }
+}

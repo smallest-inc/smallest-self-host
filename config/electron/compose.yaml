@@ -1,0 +1,44 @@
+name: electron
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "5"
+
+services:
+  router:
+    image: ${ELECTRON_ROUTER_IMAGE:?run ./electron setup first}
+    restart: unless-stopped
+    ports:
+      - ${ELECTRON_API_PORT:-8000}:8080
+      - ${ELECTRON_METRICS_HOST:-127.0.0.1}:${ELECTRON_METRICS_PORT:-9090}:9090
+    environment:
+      PROVIDER: on-prem
+      ENVIRONMENT: on-prem
+      API_KEY: ${ELECTRON_API_KEY:?run ./electron setup first}
+      VLLM_API_KEY: ${ELECTRON_VLLM_API_KEY:?run ./electron setup first}
+      LICENSE_PROXY_URL: http://license-proxy:8090
+      LICENSE_PROXY_TOKEN: ${ELECTRON_PROXY_TOKEN:?run ./electron setup first}
+      SICK_AFTER: "0"
+      UPSTREAM_RESPONSE_HEADER_TIMEOUT: 10m
+      METRICS_ADDR: ":9090"
+      SHUTDOWN_TIMEOUT: 110s
+    stop_grace_period: 2m
+    logging: *logging
+
+  license-proxy:
+    image: ${ELECTRON_LICENSE_PROXY_IMAGE}
+    restart: unless-stopped
+    environment:
+      LICENSE_KEY: ${ELECTRON_LICENSE_KEY:?run ./electron setup first}
+      ELECTRON_PROXY_TOKEN: ${ELECTRON_PROXY_TOKEN}
+      ELECTRON_VERSION: ${ELECTRON_VERSION}
+    volumes:
+      - licence:/var/lib/electron-license
+    logging: *logging
+
+volumes:
+  licence:
+  bundles:
+  cache:

@@ -1,0 +1,89 @@
+# Every value is described in README.md, under Values.
+
+global:
+  licenseKey: ""
+  licenseKeySecretRef: ""
+  imageCredentials:
+    create: true
+    registry: quay.io
+    username: ""
+    password: ""
+    email: ""
+  imageCredentialsSecretRef: ""
+
+images:
+  registry: ""
+  init: docker.io/library/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+  pullPolicy: IfNotPresent
+
+apiKey: ""
+keysSecretRef: ""
+
+engines:
+  count: 1
+  gpu: H200
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  runtimeClassName: ""
+  resources: {}
+
+  storage:
+    mode: node
+    node:
+      path: /var/lib/smallest/electron
+    perEngine:
+      storageClass: ""
+      size: 100Gi
+    shared:
+      claimName: ""
+
+  loadLock:
+    enabled: true
+    path: /var/lib/smallest/electron-lock
+
+router:
+  service:
+    type: ClusterIP
+    port: 8000
+    annotations: {}
+    loadBalancerSourceRanges: []
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: ""
+    tls: []
+  discovery: kubernetes
+  sessionHandover:
+    enabled: true
+    path: /var/lib/smallest/electron-router
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+licenseProxy:
+  storage:
+    storageClass: ""
+    size: 1Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
