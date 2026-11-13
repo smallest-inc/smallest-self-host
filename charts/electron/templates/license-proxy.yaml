@@ -13,8 +13,6 @@ spec:
       port: 8090
       targetPort: http
 ---
-# Exactly one: two would report the same usage twice. A StatefulSet stops the old pod before it starts
-# the new one, and the router and engines ride out the gap (2 minutes and 1 hour of silence).
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -32,7 +30,6 @@ spec:
       labels:
         {{- include "electron.podLabels" $sel | nindent 8 }}
       annotations:
-        # A new licence key restarts the license-proxy.
         electron.smallest.ai/license-key: {{ .Values.global.licenseKey | sha256sum | trunc 12 | quote }}
     spec:
       {{- include "electron.pullSecrets" . | nindent 6 }}

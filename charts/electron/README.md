@@ -5,7 +5,7 @@ Electron is smallest.ai's voice-agent LLM. This chart runs it on your own GPUs: 
 ## What you need
 
 - GPU nodes with H100, H200 or RTX PRO 6000 GPUs, one type per install, and the NVIDIA device plugin (or GPU Operator), so pods can ask for `nvidia.com/gpu`. Those GPUs must be Kubernetes's alone: a GPU that something outside the cluster also uses can be handed to an engine, which then waits, logging that another process is using its GPU.
-- Memory on each GPU node: about 100 GB per H100/H200 engine, 90 GB per RTX PRO 6000 engine. The model is decrypted into RAM while it loads, one engine per node at a time, then deleted.
+- Memory on each GPU node: about 100 GB per H100/H200 engine, 90 GB per RTX PRO 6000 engine. Loading the model takes that extra RAM for a few minutes, one engine per node at a time.
 - Disk for the model: 70 GB (44 GB for RTX PRO 6000) wherever it is kept, for the release running and the one before it, see Storage.
 - Outbound HTTPS from the cluster to `api.smallest.ai` and to the model's download host.
 - A licence key, from the smallest.ai console: Settings, then Licenses. Your organization's plan must include Electron on-prem.
@@ -42,7 +42,7 @@ Where the model is kept decides how often it is downloaded. Set `engines.storage
 | `perEngine` | One GPU per node | Once per engine, into a volume from `engines.storage.perEngine.storageClass` (100 GiB by default) |
 | `shared` | A ReadWriteMany volume all GPU nodes mount: EFS, NFSv4, CephFS | Once in all, onto `engines.storage.shared.claimName`, a PVC you create |
 
-The shared volume's file locks must work, so not NFS mounted with `nolock`. Whatever the mode, the engines on a node load one at a time (`engines.loadLock`), so its RAM never holds two decrypted copies; nodes load in parallel.
+The shared volume's file locks must work, so not NFS mounted with `nolock`. Whatever the mode, the engines on a node load one at a time (`engines.loadLock`), so a node never needs the loading RAM twice at once; nodes load in parallel.
 
 `node` mode, the load lock and the router's session handover use directories on the node (hostPath), and short init steps that run as root to hand them to their user. Where your cluster's policy forbids that (Pod Security `restricted`), use `perEngine` or `shared` with `engines.loadLock.enabled: false` and `router.sessionHandover.enabled: false`, and give each node room for every engine on it loading at once. On an NFS export with `root_squash` (the default), the init step can't hand over the shared volume: export it with the engine's user (uid 10001) owning the directory.
 
@@ -97,7 +97,7 @@ The router answers with a code saying why:
 | `usage_unbilled` | smallest.ai hasn't been able to bill this install's usage for a day: contact smallest.ai |
 | `service_unavailable` | No engine is ready yet: they are downloading or loading |
 
-`GET /status` on the router (with the API key) shows the licence and how many engines are ready.
+`GET /status` on the router (with the API key) shows whether it serves, why not, and how many engines are ready. Credits and the licence's grace are in the metrics (see Monitoring).
 
 The license-proxy is one pod with a volume (its install id and the usage not yet billed). If its node fails, Kubernetes leaves it terminating, and the router refuses requests about 2 minutes later with `licence_unavailable`. Run it on a stable node (`licenseProxy.nodeSelector`, not spot). To move it off a dead node: `kubectl -n electron delete pod electron-license-proxy-0 --force`, after the node is really gone, or with Kubernetes's non-graceful node shutdown.
 
@@ -137,7 +137,7 @@ Logs (`kubectl logs`): the router writes one JSON line per request (its id, timi
 | `engines.count` | 1 | Engines, one per GPU |
 | `engines.gpu` | H200 | H100, H200 or RTX PRO 6000 |
 | `engines.nodeSelector`, `tolerations`, `affinity`, `runtimeClassName` | | Where engines run |
-| `engines.resources` | sized from the GPU | Memory and CPU per engine (the decrypted model plus 32 GiB requested); the GPU is always one |
+| `engines.resources` | sized from the GPU | Memory and CPU per engine (the model while it loads, plus 32 GiB); the GPU is always one |
 | `engines.storage.*` | `node` | See Storage |
 | `engines.loadLock.*` | enabled | See Storage |
 | `router.service.*`, `router.ingress.*` | ClusterIP on 8000 | See Reaching it from outside the cluster |

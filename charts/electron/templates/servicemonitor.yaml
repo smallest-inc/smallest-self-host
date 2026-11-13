@@ -20,6 +20,5 @@ spec:
     - port: metrics
       path: /metrics
       interval: {{ .Values.metrics.serviceMonitor.interval }}
-      # The router's per-engine series carry their own pod label, naming the engine; keep it over the scrape target's.
       honorLabels: true
 {{- end }}

@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Set up, start and check Electron on this server. Run ./electron help.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# The release in this folder (release.env); .env holds the one installed. upgrade fetches others from here.
 release_get() { if [[ -f ${2:-release.env} ]]; then sed -n "s/^$1=//p" "${2:-release.env}" | tail -n1; fi; }
 ELECTRON_VERSION=$(release_get ELECTRON_VERSION)
 RELEASES=https://raw.githubusercontent.com/smallest-inc/smallest-self-host
@@ -28,7 +26,6 @@ Everything is plain Docker Compose: docker compose ps, logs and down work too.
 EOF
 }
 
-# command_help <command>: what one command does, and its options.
 command_help() {
   case $1 in
     setup)
@@ -82,13 +79,11 @@ EOF
   esac
 }
 
-# Output. Colour only on a terminal, and never with NO_COLOR set.
 if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
   B=$'\e[1m' D=$'\e[2m' R=$'\e[31m' G=$'\e[32m' Y=$'\e[33m' N=$'\e[0m'
 else
   B="" D="" R="" G="" Y="" N=""
 fi
-# EL clears a line that is redrawn in place, on a terminal only.
 EL=""
 [[ -t 1 ]] && EL=$'\e[2K'
 title() { printf '\n%s%s%s\n' "$B" "$*" "$N"; }
@@ -97,7 +92,6 @@ note()  { printf '  %s!%s %s\n' "$Y" "$N" "$*"; }
 hint()  { printf '    %s%s%s\n' "$D" "$*" "$N"; }
 die()   { printf '  %s✗%s %s\n' "$R" "$N" "$1" >&2; shift; for h in "$@"; do printf '    %s\n' "$h" >&2; done; exit 1; }
 
-# ask "question" default(y|n): yes or no; the default without a terminal or with --yes.
 yes_all=""
 ask() {
   local answer prompt="[Y/n]"
@@ -109,8 +103,6 @@ ask() {
 }
 
 compose() { docker compose "$@"; }
-# up and run get no stdin: Compose asks whether to recreate a volume whose definition changed, and
-# with none it keeps the volume (the model, the licence state) instead of waiting for an answer.
 compose_unattended() { docker compose "$@" </dev/null; }
 env_get() { if [[ -f .env ]]; then sed -n "s/^$1=//p" .env | tail -n1; fi; }
 need_setup() { [[ -f .env && -f compose.override.yaml ]] || die "Electron isn't set up on this server yet." "Run ./electron setup first."; }
@@ -122,17 +114,15 @@ random_hex() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n'; }
 mins() { printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); }
 list() { local s; printf -v s '%s, ' "$@"; echo "${s%, }"; }
 
-# The build for each supported GPU, and the RAM its decrypted model takes while loading.
 build_of() {
   case $1 in
     *"RTX PRO 6000"*) echo "rtx 22g 22" ;;
-    *GH200*) return 1 ;; # Grace Hopper: an Arm host the images don't run on
+    *GH200*) return 1 ;;
     *H100* | *H200*) echo "hopper 34g 35" ;;
     *) return 1 ;;
   esac
 }
 
-# release_lines FILE FAMILY: the .env lines for the release in FILE on this server's GPU family.
 RELEASE_KEYS=(ELECTRON_VERSION ELECTRON_ENGINE_IMAGE ELECTRON_ROUTER_IMAGE ELECTRON_LICENSE_PROXY_IMAGE ELECTRON_ENGINE_BUILD)
 release_lines() {
   local k
@@ -168,7 +158,6 @@ cmd_setup() {
   fi
   ok "NVIDIA driver $(nvidia-smi --query-gpu=driver_version --format=csv,noheader | head -1), Container Toolkit"
 
-  # GPUs: all of one supported type; that type picks the build.
   local -a idx=() uuid=() name=() used=()
   while IFS=, read -r a b c d; do
     idx+=("${a// /}") uuid+=("${b// /}") name+=("${c# }") used+=("${d// /}")
@@ -205,7 +194,6 @@ cmd_setup() {
   done
   ok "${#pick[@]} × $gpu_name (GPU $(list "${pick[@]}")), one engine each"
 
-  # RAM for each engine and the one decrypted copy that loads at a time; disk for two bundles (now and an upgrade).
   local ram_gb=$(($(awk '/^MemTotal:/ {print $2}' /proc/meminfo) / 1048576)) need=$((${ram%g} + 32 * ${#pick[@]}))
   if ((ram_gb >= need)); then ok "$ram_gb GB RAM"; else note "$ram_gb GB RAM; ${#pick[@]} engine(s) need about $need GB."; fi
   local root free_gb
@@ -219,7 +207,6 @@ cmd_setup() {
     note "Only $free_gb GB free under $root; the model needs $((2 * bundle_gb + 10)) GB (current and next version)."
   fi
 
-  # Port: keep the one chosen before; offer the next free one if it's taken.
   local explicit=$port
   port=${port:-$(env_get ELECTRON_API_PORT)}
   port=${port:-8000}
@@ -233,10 +220,9 @@ cmd_setup() {
     port=$next
   fi
   ok "API on port $port"
-  # Metrics: the one scrape target for the install (README, Monitoring). Keep it; else 9090 or the next free.
   local mport mhost
   mhost=$(env_get ELECTRON_METRICS_HOST)
-  mhost=${mhost:-0.0.0.0}
+  mhost=${mhost:-127.0.0.1}
   mport=$(env_get ELECTRON_METRICS_PORT)
   mport=${mport:-9090}
   while [[ $mport == "$port" ]] || port_busy "$mport"; do mport=$((mport + 1)); done
@@ -256,7 +242,6 @@ cmd_setup() {
       "Create one in the smallest.ai console (Settings, then Licenses) and rerun setup, or pass ELECTRON_LICENSE_KEY=..."
     ok "Licence key set (stored in .env)"
   fi
-  # .env holds it unquoted: a space, # or $ would change what Compose reads.
   [[ $licence_key =~ ^[A-Za-z0-9._~+/=-]+$ ]] || die "That licence key has characters a licence key never has." "Copy it again from the console."
 
   title "API key"
@@ -280,10 +265,8 @@ cmd_setup() {
   fi
   ((${#api_key} >= 16)) || die "The API key must be at least 16 characters."
   [[ $api_key =~ ^[A-Za-z0-9._~+/=-]+$ ]] || die "The API key may hold letters, digits and . _ ~ + / = - only."
-  # The key between the router and the engines; nobody needs to know it.
   vllm_key=$(env_get ELECTRON_VLLM_API_KEY)
   vllm_key=${vllm_key:-$(random_hex)}
-  # What the router and engines present to the license-proxy; no one else on this network can use it.
   proxy_token=$(env_get ELECTRON_PROXY_TOKEN)
   proxy_token=${proxy_token:-$(random_hex)}
 
@@ -350,8 +333,6 @@ EOF
   fi
 }
 
-# check_licence asks smallest.ai about the licence once, through the license-proxy image, so a wrong
-# key or a closed firewall shows up now rather than as engines that never load.
 check_licence() {
   local out code=0
   out=$(compose_unattended run --rm --no-deps -T --quiet-pull license-proxy check 2>&1) || code=$?
@@ -375,7 +356,6 @@ check_licence() {
   esac
 }
 
-# licence_line prints the licence as the license-proxy sees it, asked from inside the install's network.
 licence_line() {
   local e state
   for e in $(engines); do
@@ -393,7 +373,6 @@ print(("active" if s["serve"] else s.get("reason", "?")) + credits + left)
   done
 }
 
-# engine_state <service>: "<state>|<detail>", read from the container and its wrapper's log.
 engine_state() {
   local id status started line msg at ago err
   id=$(compose ps -aq "$1" 2>/dev/null)
@@ -403,7 +382,6 @@ engine_state() {
     restarting) echo "restarting|after a crash; ./electron logs $1"; return ;;
     exited | dead) echo "stopped|"; return ;;
   esac
-  # Only this run's log: a restarted engine's last run said nothing about this one.
   line=$(docker logs --since "$started" "$id" 2>&1 | grep 'level=' | tail -1 || true)
   msg=$(sed -n 's/.* msg="\([^"]*\)".*/\1/p' <<<"$line")
   at=$(sed -n 's/^time=\([^ ]*\).*/\1/p' <<<"$line")
@@ -424,7 +402,7 @@ engine_state() {
       echo "downloading|${pct:-0}%, once per server" ;;
     "bundle downloaded"*) echo "downloading|done" ;;
     "the licence stopped this engine"*) echo "licence|stopped by the licence; it loads again once the licence allows" ;;
-    "decrypting the bundle"*) echo "decrypting|into RAM, $ago" ;;
+    "decrypting the bundle"*) echo "preparing|the model, $ago" ;;
     "bundle decrypted"*) echo "loading|onto the GPU, $ago" ;;
     "vLLM healthy"*)
       if [[ $(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$id") == unhealthy ]]; then
@@ -437,7 +415,6 @@ engine_state() {
   esac
 }
 
-# show_engines: one line per engine; sets READY, PROBLEMS and TOTAL.
 show_engines() {
   local e s state detail gpu colour
   READY=0 PROBLEMS=0 TOTAL=0
@@ -455,8 +432,6 @@ show_engines() {
   done
 }
 
-# watch_engines until-settled|forever: the engines' board, redrawn in place on a terminal (a new
-# one every 30 s otherwise), until each engine is ready or stuck, or until Ctrl-C.
 watch_engines() {
   local out lines=0 start=$SECONDS
   while :; do
@@ -503,7 +478,6 @@ cmd_start() {
   fi
 }
 
-# cmd_status [--watch]: exits 0 only when every engine is ready, so scripts can check it.
 cmd_status() {
   local watch=""
   while (($#)); do
@@ -519,7 +493,10 @@ cmd_status() {
     return 1
   fi
   printf 'API     %s\n' "$(api_url)"
-  printf 'Metrics http://%s:%s/metrics\n' "$(host_ip)" "$(env_get ELECTRON_METRICS_PORT)"
+  local mhost
+  mhost=$(env_get ELECTRON_METRICS_HOST)
+  [[ -n $mhost && $mhost != 0.0.0.0 ]] || mhost=$(host_ip)
+  printf 'Metrics http://%s:%s/metrics\n' "$mhost" "$(env_get ELECTRON_METRICS_PORT)"
   licence_line
   echo
   if [[ -n $watch ]]; then
@@ -540,7 +517,6 @@ cmd_test() {
   done
   [[ -n $ready ]] || die "No engine is ready yet." "./electron status shows their progress."
   printf '%sSending a test request through the API%s\n\n' "$B" "$N"
-  # From inside the install's network, so it works wherever the host can reach its containers or not.
   local result
   result=$(compose exec -T "$ready" python3 -c '
 import json, sys, time, urllib.request as u, urllib.error
@@ -575,10 +551,8 @@ print(ask("")[0])
 
 cmd_logs() { need_setup; compose logs -f --tail 100 "$@"; }
 
-# quiet_compose ...: docker compose, without its per-container progress lines.
 quiet_compose() { compose_unattended "$@" 2>&1 | grep -iv -e warn -e '^ *\(Container\|Network\|Volume\)' || true; }
 
-# wait_engine <service>: until the engine is ready (0) or stuck (1), redrawn in place on a terminal.
 wait_engine() {
   local s state start=$SECONDS
   while ((SECONDS - start < 3600)); do
@@ -596,7 +570,6 @@ wait_engine() {
   return 1
 }
 
-# latest_release: the newest release's tag. Never main, which may hold changes no release has published.
 latest_release() {
   curl -fsSL --retry 3 "https://api.github.com/repos/smallest-inc/smallest-self-host/git/matching-refs/tags/electron-" |
     grep -o '"refs/tags/electron-[0-9]*\.[0-9]*\.[0-9]*"' | grep -o 'electron-[0-9.]*' | sort -V | tail -1
@@ -614,7 +587,6 @@ cmd_upgrade() {
   need_setup
   command -v curl >/dev/null || die "curl is needed to download the release."
   from=$(env_get ELECTRON_VERSION) fam=$(env_get ELECTRON_BUILD)
-  # An upgrade that stopped partway started from the version its marker names, not .env's.
   [[ -f .upgrading ]] && from=$(sed -n 's/^from=//p' .upgrading)
   if [[ -n $want ]]; then
     [[ $want =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "A version is numbers and dots, like 1.1."
@@ -629,7 +601,7 @@ cmd_upgrade() {
 
   title "Getting $label"
   stage=$(mktemp -d)
-  # shellcheck disable=SC2064 # expanded now: stage is local, gone when the script exits
+  # shellcheck disable=SC2064
   trap "rm -rf '$stage'" EXIT
   for f in "${RELEASE_FILES[@]}"; do
     curl -fsSL --retry 3 "$RELEASES/$ref/config/electron/$f" -o "$stage/$f" ||
@@ -640,9 +612,7 @@ cmd_upgrade() {
   [[ -n $to && -n $(release_get "ELECTRON_ENGINE_BUILD_${fam^^}" "$stage/release.env") ]] ||
     die "That release doesn't run on this server's GPUs, or its files are incomplete."
   release_lines "$stage/release.env" "$fam" >"$stage/release.lines"
-  # new KEY: the release changes KEY from what .env has.
   new() { [[ $(sed -n "s/^$1=//p" "$stage/release.lines") != "$(env_get "$1")" ]]; }
-  # An upgrade that stopped partway (.upgrading names where it started) is finished by running it again.
   local resume="" model=""
   [[ -f .upgrading ]] && resume=1
   local -a changes=()
@@ -673,7 +643,6 @@ cmd_upgrade() {
   ask "Upgrade from $from to $to?" y || die "Nothing changed."
 
   title "Upgrading"
-  # Images first, so a failed pull changes nothing.
   for k in ELECTRON_ENGINE_IMAGE ELECTRON_ROUTER_IMAGE ELECTRON_LICENSE_PROXY_IMAGE; do
     if new "$k"; then
       f=$(sed -n "s/^$k=//p" "$stage/release.lines")
@@ -712,8 +681,6 @@ cmd_upgrade() {
   fi
   quiet_compose up -d --no-deps --quiet-pull router
   ok "Router on $to"
-  # One engine at a time: Compose recreates only the ones whose image or model changed, and the
-  # next waits until this one serves again.
   local e
   for e in $(engines); do
     quiet_compose up -d --no-deps --quiet-pull "$e"

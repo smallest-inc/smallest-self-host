@@ -1,5 +1,3 @@
-# helm test: one short chat request through the router, as an app would send it. It runs on the engine
-# image, which the GPU nodes already hold, and asks for no GPU.
 apiVersion: v1
 kind: Pod
 metadata:

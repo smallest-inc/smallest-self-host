@@ -8,7 +8,7 @@ Electron, smallest.ai's voice-agent LLM, on one GPU server. It serves the OpenAI
 - Registry credentials from smallest.ai, with this server logged in: `docker login quay.io`
 - RTX Pro 6000, H100 or H200 GPUs (one type per server)
 - The NVIDIA driver, Docker with Compose v2, and the NVIDIA Container Toolkit
-- RAM: about 32 GB per engine, plus one decrypted model while an engine loads: 22 GB (RTX) or 34 GB (H100/H200)
+- RAM: about 32 GB per engine, plus, while an engine loads, 22 GB (RTX) or 34 GB (H100/H200) more
 - Disk under Docker's data folder for two versions of the model (the one running, and the next during an upgrade) and vLLM's compile cache: about 55 GB (RTX) or 80 GB (H100/H200)
 - Outbound HTTPS to smallest.ai: the licence is checked every 2 minutes, and the model downloads once per version
 
@@ -70,7 +70,7 @@ The licence is checked every 2 minutes. While it is suspended or expired, or out
 
 ## Monitoring
 
-The install has one scrape target with no key: `http://<server>:9090/metrics` (the port `setup` chose, `ELECTRON_METRICS_PORT` in `.env`; `./electron status` shows it). Keep that port inside your network: Docker's published ports bypass ufw and firewalld, so to keep it to this server set `ELECTRON_METRICS_HOST=127.0.0.1` in `.env` and `./electron start`. Add it to your Prometheus:
+The install has one scrape target with no key: `http://127.0.0.1:9090/metrics` (the port `setup` chose, `ELECTRON_METRICS_PORT` in `.env`; `./electron status` shows it). It listens on this server only. For a Prometheus on another machine, set `ELECTRON_METRICS_HOST` in `.env` to this server's private address, then `./electron start`; never a public one, as Docker's published ports bypass ufw and firewalld. Add it to your Prometheus:
 
 ```yaml
 scrape_configs:
@@ -98,7 +98,7 @@ Logs (`./electron logs`): the router writes one JSON line per request (its id, t
 | Service | |
 |---|---|
 | `router` | The API, and the install's metrics on their own port. Checks the API key and keeps each conversation on the engine that holds it. |
-| `engine-N` | vLLM on one GPU. Gets its key from the license-proxy, downloads the model once per server, decrypts it into RAM, loads it, then deletes the decrypted copy. |
+| `engine-N` | vLLM on one GPU. Downloads the model once per server and loads it. |
 | `license-proxy` | Checks the licence with smallest.ai and reports the tokens served. The only part that holds the licence key or talks to smallest.ai. |
 
 | File | |

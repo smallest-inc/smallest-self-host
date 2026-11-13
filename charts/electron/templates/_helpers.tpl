@@ -30,8 +30,6 @@ imagePullSecrets:
 http://{{ .Release.Name }}-license-proxy:8090
 {{- end }}
 
-{{/* What this chart's release runs (release.json, written when the chart is published): its version,
-its images by digest, and a fingerprint of each GPU family's model and vLLM settings. */}}
 {{- define "electron.release" -}}
 {{- $r := .Files.Get "release.json" | fromJson -}}
 {{- if not $r.version }}{{ fail "release.json is missing: install a published Electron chart" }}{{ end -}}
@@ -42,18 +40,15 @@ its images by digest, and a fingerprint of each GPU family's model and vLLM sett
 {{- (include "electron.release" . | fromJson).version -}}
 {{- end }}
 
-{{/* The router's init image, from images.registry when it is set, like every other image. */}}
 {{- define "electron.initImage" -}}
 {{- with .Values.images.registry }}{{ trimSuffix "/" . }}/{{ base $.Values.images.init }}{{ else }}{{ .Values.images.init }}{{ end -}}
 {{- end }}
 
-{{/* An image as released, or from images.registry with the same name, tag and digest. */}}
 {{- define "electron.image" -}}
 {{- $ref := index (include "electron.release" .root | fromJson).images .name -}}
 {{- with .root.Values.images.registry }}{{ trimSuffix "/" . }}/{{ base $ref }}{{ else }}{{ $ref }}{{ end -}}
 {{- end }}
 
-{{/* The engines' GPU family: the build the license server hands them. */}}
 {{- define "electron.family" -}}
 {{- $gpu := .Values.engines.gpu | upper -}}
 {{- if contains "GH200" $gpu -}}{{ fail "engines.gpu GH200: Grace Hopper is an Arm host the images don't run on" }}
@@ -63,7 +58,6 @@ its images by digest, and a fingerprint of each GPU family's model and vLLM sett
 {{- end -}}
 {{- end }}
 
-{{/* The model's decrypted size in RAM while it loads, by GPU type. */}}
 {{- define "electron.modelRAM" -}}
 {{- $gpu := .Values.engines.gpu | upper -}}
 {{- if contains "RTX PRO 6000" $gpu -}}22Gi
@@ -72,8 +66,6 @@ its images by digest, and a fingerprint of each GPU family's model and vLLM sett
 {{- end -}}
 {{- end }}
 
-{{/* No version or chart labels on pods: a release restarts only the pods whose image, build or keys
-it changes. */}}
 {{- define "electron.podLabels" -}}
 app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/part-of: electron
