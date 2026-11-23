@@ -1,0 +1,8 @@
+apiVersion: v2
+name: electron
+description: Electron, smallest.ai's voice-agent LLM, on your own GPUs
+type: application
+version: 0.1.0
+appVersion: "0.1"
+kubeVersion: ">=1.25.0-0"
+home: https://smallest.ai
