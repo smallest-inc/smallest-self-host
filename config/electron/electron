@@ -364,7 +364,7 @@ try:
     u.urlopen("http://license-proxy:6699/health", timeout=5)
     print("active")
 except urllib.error.HTTPError:
-    print("disabled: smallest.ai refused it, or was unreachable for an hour (./electron logs license-proxy)")
+    print("disabled: smallest.ai refused it, or was unreachable for an hour (./electron logs license-proxy). Once fixed: docker compose restart license-proxy")
 ' 2>/dev/null) || state="license-proxy not answering"
     printf 'Licence %s\n' "${state:-license-proxy not answering}"
     return
