@@ -47,8 +47,6 @@ spec:
       labels:
         {{- include "electron.podLabels" $sel | nindent 8 }}
         electron.smallest.ai/role: decode
-      annotations:
-        electron.smallest.ai/build: {{ index (include "electron.release" . | fromJson).engineBuilds (include "electron.family" .) | quote }}
     spec:
       {{- include "electron.pullSecrets" . | nindent 6 }}
       enableServiceLinks: false
@@ -115,11 +113,6 @@ spec:
               value: $(ELECTRON_NAMESPACE).$(ELECTRON_POD)
             - name: ELECTRON_LICENSE_PROXY
               value: {{ include "electron.licenseProxyURL" . }}
-            - name: ELECTRON_PROXY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "electron.keysSecret" . }}
-                  key: proxy-token
             - name: VLLM_API_KEY
               valueFrom:
                 secretKeyRef:

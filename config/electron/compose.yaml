@@ -18,8 +18,7 @@ services:
       ENVIRONMENT: on-prem
       API_KEY: ${ELECTRON_API_KEY:?run ./electron setup first}
       VLLM_API_KEY: ${ELECTRON_VLLM_API_KEY:?run ./electron setup first}
-      LICENSE_PROXY_URL: http://license-proxy:8090
-      LICENSE_PROXY_TOKEN: ${ELECTRON_PROXY_TOKEN:?run ./electron setup first}
+      LICENSE_PROXY_URL: http://license-proxy:6699
       SICK_AFTER: "0"
       UPSTREAM_RESPONSE_HEADER_TIMEOUT: 10m
       METRICS_ADDR: ":9090"
@@ -32,10 +31,10 @@ services:
     restart: unless-stopped
     environment:
       LICENSE_KEY: ${ELECTRON_LICENSE_KEY:?run ./electron setup first}
-      ELECTRON_PROXY_TOKEN: ${ELECTRON_PROXY_TOKEN}
-      ELECTRON_VERSION: ${ELECTRON_VERSION}
+      PORT: "6699"
     volumes:
-      - licence:/var/lib/electron-license
+      - licence:/var/lib/license-proxy/electron
+    stop_grace_period: 1m
     logging: *logging
 
 volumes:

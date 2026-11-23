@@ -35,10 +35,10 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(electron_licence_serving, job)",
+          "query": "label_values(electron_router_licence_serving, job)",
           "refId": "job"
         },
-        "definition": "label_values(electron_licence_serving, job)",
+        "definition": "label_values(electron_router_licence_serving, job)",
         "refresh": 2,
         "includeAll": false,
         "multi": false,
@@ -55,7 +55,7 @@
   "panels": [
     {
       "type": "row",
-      "title": "Licence and billing",
+      "title": "Licence",
       "id": 1,
       "collapsed": false,
       "panels": [],
@@ -70,10 +70,10 @@
       "type": "stat",
       "title": "Serving",
       "id": 2,
-      "description": "Whether the licence lets this install serve requests now.",
+      "description": "Whether the licence lets this install serve requests now. When it doesn't, the license-proxy's log says why.",
       "gridPos": {
         "h": 4,
-        "w": 3,
+        "w": 8,
         "x": 0,
         "y": 1
       },
@@ -84,7 +84,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(electron_licence_serving{job=~\"$job\"})",
+          "expr": "max(electron_router_licence_serving{job=~\"$job\"})",
           "instant": true
         }
       ],
@@ -135,13 +135,13 @@
     },
     {
       "type": "stat",
-      "title": "Licence",
+      "title": "Engines ready",
       "id": 3,
-      "description": "The licence's state as smallest.ai last sealed it, and why the install can't serve when it can't (README: When it doesn't serve).",
+      "description": "The engines serving, out of those the install runs. Fewer means some are downloading, loading or failing: the engines panel below shows which.",
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 3,
+        "w": 8,
+        "x": 8,
         "y": 1
       },
       "datasource": {
@@ -151,61 +151,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (status, reason) (electron_licence_state{job=~\"$job\"})",
-          "instant": true,
-          "legendFormat": "{{status}} {{reason}}"
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "name",
-        "justifyMode": "center",
-        "orientation": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Credits",
-      "id": 4,
-      "description": "Credits left on your organization, as smallest.ai last said.",
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 7,
-        "y": 1
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(electron_licence_credits{job=~\"$job\"})",
+          "expr": "max(electron_router_decode_pods_ready{job=~\"$job\"}) / max(electron_router_decode_pods_desired{job=~\"$job\"})",
           "instant": true
         }
       ],
@@ -225,74 +171,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "percentunit",
           "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "decimals": 0
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Credit left",
-      "id": 5,
-      "description": "How long the credits last at the past day's rate of use. Top up in the smallest.ai console. Shows Measuring until the license-proxy has seen the credits fall over a few reports.",
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 10,
-        "y": 1
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(electron_licence_credit_hours_left{job=~\"$job\"})",
-          "instant": true
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "center",
-        "orientation": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "h",
-          "mappings": [
-            {
-              "type": "special",
-              "options": {
-                "match": "null",
-                "result": {
-                  "text": "Measuring",
-                  "color": "blue",
-                  "index": 0
-                }
-              }
-            }
-          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -302,73 +182,11 @@
               },
               {
                 "color": "orange",
-                "value": 24
+                "value": 0.99
               },
               {
                 "color": "green",
-                "value": 72
-              }
-            ]
-          },
-          "decimals": 0
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Since smallest.ai answered",
-      "id": 6,
-      "description": "The license-proxy reports every 2 minutes. Past an hour without an answer the install stops serving: check this server's outbound HTTPS.",
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 13,
-        "y": 1
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(electron_licence_last_answer_age_seconds{job=~\"$job\"})",
-          "instant": true
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "center",
-        "orientation": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 600
-              },
-              {
-                "color": "red",
-                "value": 1800
+                "value": 1
               }
             ]
           }
@@ -378,74 +196,13 @@
     },
     {
       "type": "stat",
-      "title": "Oldest unbilled usage",
-      "id": 7,
-      "description": "Usage waiting for smallest.ai to charge it. Engines stop past a day: contact smallest.ai.",
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 17,
-        "y": 1
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(electron_usage_unbilled_age_seconds{job=~\"$job\"})",
-          "instant": true
-        }
-      ],
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value",
-        "justifyMode": "center",
-        "orientation": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 3600
-              },
-              {
-                "color": "red",
-                "value": 43200
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Parts reporting",
+      "title": "Engines reporting",
       "id": 8,
-      "description": "The share of the install's parts (each engine, the license-proxy) the router could read metrics from.",
+      "description": "The share of the install's engines the router could read metrics from.",
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 21,
+        "w": 8,
+        "x": 16,
         "y": 1
       },
       "datasource": {
@@ -678,9 +435,9 @@
     },
     {
       "type": "timeseries",
-      "title": "Tokens billed per second",
+      "title": "Tokens per second",
       "id": 13,
-      "description": "What the engines reported for billing, calls made straight to an engine included: input computed, input served from the prefix cache, and output.",
+      "description": "What the engines served and bill, calls made straight to an engine included: input computed, input served from the prefix cache, and output.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -694,8 +451,18 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (kind) (rate(electron_usage_tokens_total{job=~\"$job\"}[$__rate_interval]))",
-          "legendFormat": "{{kind}}"
+          "expr": "sum(rate(vllm:prompt_tokens_by_source_total{job=~\"$job\", source=\"local_compute\"}[$__rate_interval]))",
+          "legendFormat": "uncached input"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(vllm:prompt_tokens_by_source_total{job=~\"$job\", source=\"local_cache_hit\"}[$__rate_interval]))",
+          "legendFormat": "cached input"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(vllm:generation_tokens_total{job=~\"$job\"}[$__rate_interval]))",
+          "legendFormat": "output"
         }
       ],
       "options": {

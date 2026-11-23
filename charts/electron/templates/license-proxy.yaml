@@ -10,7 +10,7 @@ spec:
     {{- include "electron.selector" $sel | nindent 4 }}
   ports:
     - name: http
-      port: 8090
+      port: 6699
       targetPort: http
 ---
 apiVersion: apps/v1
@@ -34,6 +34,7 @@ spec:
     spec:
       {{- include "electron.pullSecrets" . | nindent 6 }}
       enableServiceLinks: false
+      terminationGracePeriodSeconds: 60
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -60,24 +61,26 @@ spec:
                 secretKeyRef:
                   name: {{ include "electron.licenseSecret" . }}
                   key: license-key
-            - name: ELECTRON_PROXY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "electron.keysSecret" . }}
-                  key: proxy-token
-            - name: ELECTRON_VERSION
-              value: {{ include "electron.version" . | quote }}
+            - name: PORT
+              value: "6699"
           ports:
             - name: http
-              containerPort: 8090
+              containerPort: 6699
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
           readinessProbe:
             tcpSocket:
               port: http
             periodSeconds: 5
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: http
-            periodSeconds: 10
+            periodSeconds: 30
+            failureThreshold: 4
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -87,7 +90,12 @@ spec:
             {{- toYaml .Values.licenseProxy.resources | nindent 12 }}
           volumeMounts:
             - name: state
-              mountPath: /var/lib/electron-license
+              mountPath: /var/lib/license-proxy/electron
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: state

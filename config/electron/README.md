@@ -58,7 +58,7 @@ It downloads the newest release's files into this folder, shows what the release
 
 - the router, when the release has a new one: it finishes the replies in progress (up to 2 minutes), then the API pauses for a few seconds
 - the engines, when the release has a new engine or model: a new model is downloaded first while the engines keep serving, then the engines reload one at a time, each waiting for the one before to serve again (with one engine, the API pauses while it reloads)
-- the license-proxy, every time, in seconds; serving carries on
+- the license-proxy, when the release has a new one, in seconds; serving carries on
 
 If an upgrade stops partway (a download fails, an engine doesn't come back), fix the cause and run the same command again: it finishes what it hadn't restarted. To go back, name the version you were on: `./electron upgrade 1.0`. The model you were on is kept on disk, so going back doesn't download it again. The releases and their notes are at https://github.com/smallest-inc/smallest-self-host/releases.
 
@@ -66,7 +66,7 @@ If an upgrade stops partway (a download fails, an engine doesn't come back), fix
 
 `./electron status` names the problem. An engine that can't start because of the server, such as the wrong GPU or too little RAM, says why and waits instead of restarting over and over. Fix the cause, then run `./electron start`.
 
-The licence is checked every 2 minutes. While it is suspended or expired, or out of credits, requests get a 403 that says why. Out of credits, engines stay loaded for 24 hours so serving resumes as soon as you top up; otherwise they unload, and load again on their own once the licence is valid. If this server can't reach smallest.ai, it keeps serving for an hour.
+The licence is checked when the license-proxy starts, and usage is reported every 2 minutes. An engine that starts asks smallest.ai for its model's key, so a licence that is suspended, expired or out of credits keeps it from loading, and `./electron status` says why. If smallest.ai refuses the licence later, or this server can't reach smallest.ai for an hour, requests get a 403 (`licence_inactive`) and the engines unload; once fixed, `docker compose restart license-proxy` checks the licence again and the engines load on their own.
 
 ## Monitoring
 
@@ -81,17 +81,15 @@ scrape_configs:
 
 | Metrics | From |
 | --- | --- |
-| `electron_licence_*`: `serving`, `state{status,reason}`, `credits`, `credit_hours_left`, `last_answer_age_seconds`, `grace_left_seconds` | The license-proxy: the licence as smallest.ai last answered |
-| `electron_usage_*`: `tokens_total{kind}`, `requests_total`, `unbilled_age_seconds`, `batches_pending` | The license-proxy: what the engines reported for billing, and whether smallest.ai has charged it |
-| `electron_router_*`: requests by status, time to first token, request duration, tokens, engines ready and expected, requests in flight per engine | The router |
+| `electron_router_*`: whether the licence lets the install serve (`licence_serving`), requests by status, time to first token, request duration, tokens, engines ready and expected, requests in flight per engine | The router |
 | `vllm:*`, labelled `electron_engine` with the engine's name: requests running and waiting, KV-cache use, prefix-cache hits, tokens | Each engine's vLLM |
-| `electron_scrape_up{source}` | 1 for each part the router could read; 0 means that engine or the license-proxy didn't answer |
+| `electron_scrape_up{source}` | 1 for each engine the router could read; 0 means that engine didn't answer |
 
 For Grafana, import `grafana/dashboards/electron-dashboard.json` from this repository and pick your Prometheus.
 
-Worth alerting on: `electron_licence_serving == 0` (the install is refusing requests: `electron_licence_state` says why), `electron_licence_credit_hours_left < 24`, `electron_licence_last_answer_age_seconds > 1800` (this server can't reach smallest.ai; it stops serving after an hour), `electron_usage_unbilled_age_seconds > 43200` (engines stop after a day), `electron_router_decode_pods_ready < electron_router_decode_pods_desired`, and `electron_scrape_up == 0`.
+Worth alerting on: `electron_router_licence_serving == 0` (the install is refusing requests for its licence: the license-proxy's log says why), `electron_router_decode_pods_ready < electron_router_decode_pods_desired`, and `electron_scrape_up == 0`.
 
-Logs (`./electron logs`): the router writes one JSON line per request (its id, timings, tokens, status and the engine that served it), and the engines and the license-proxy write plain lines about loading, the licence and billing. None of them logs message content, API keys or the licence key.
+Logs (`./electron logs`): the router writes one JSON line per request (its id, timings, tokens, status and the engine that served it), and the engines and the license-proxy write plain lines about loading, the licence and usage. None of them logs message content, API keys or the licence key.
 
 ## What runs
 
@@ -99,7 +97,7 @@ Logs (`./electron logs`): the router writes one JSON line per request (its id, t
 |---|---|
 | `router` | The API, and the install's metrics on their own port. Checks the API key and keeps each conversation on the engine that holds it. |
 | `engine-N` | vLLM on one GPU. Downloads the model once per server and loads it. |
-| `license-proxy` | Checks the licence with smallest.ai and reports the tokens served. The only part that holds the licence key or talks to smallest.ai. |
+| `license-proxy` | Checks the licence with smallest.ai, gets each engine its model's key, and reports the tokens served. The only part that holds the licence key or talks to smallest.ai. |
 
 | File | |
 |---|---|

@@ -55,11 +55,10 @@ Left empty, `apiKey` is generated at install and kept across upgrades and uninst
 ```bash
 kubectl -n electron create secret generic electron-api-keys \
   --from-literal=api-key="$(openssl rand -hex 24)" \
-  --from-literal=vllm-api-key="$(openssl rand -hex 24)" \
-  --from-literal=proxy-token="$(openssl rand -hex 24)"
+  --from-literal=vllm-api-key="$(openssl rand -hex 24)"
 ```
 
-Pods read the keys when they start. A change to `apiKey` or `global.licenseKey` restarts the pod that uses it; after changing a Secret you made yourself (`keysSecretRef`, `global.licenseKeySecretRef`), restart them. Rotate only `api-key` (and the licence key): a new `vllm-api-key` or `proxy-token` stops the engines answering until every one of them has restarted.
+Pods read the keys when they start. A change to `apiKey` or `global.licenseKey` restarts the pod that uses it; after changing a Secret you made yourself (`keysSecretRef`, `global.licenseKeySecretRef`), restart them. Rotate only `api-key` (and the licence key): a new `vllm-api-key` stops the engines answering until every one of them has restarted.
 
 ```bash
 kubectl -n electron rollout restart deployment/electron-router statefulset/electron-engine statefulset/electron-license-proxy
@@ -78,7 +77,7 @@ helm repo update
 helm upgrade electron smallest-self-host/electron -n electron --reset-then-reuse-values
 ```
 
-An upgrade restarts only what the release changed: the router when its image is new, the engines when their image, model or settings are new, and the license-proxy every time (seconds; serving carries on). A new model is downloaded by each engine as it restarts, so read the release notes for its size. `--reset-then-reuse-values` (Helm 3.14 and later) keeps your values and takes the new chart's defaults for the rest; `--reuse-values` would also keep the old defaults, which a newer chart may not work with. With values in a file, `-f electron.yaml` works the same.
+An upgrade restarts only what the release changed: the router when its image is new, the engines when their image, model or settings are new, and the license-proxy when its image is new (seconds; serving carries on). A new model is downloaded by each engine as it restarts, so read the release notes for its size. `--reset-then-reuse-values` (Helm 3.14 and later) keeps your values and takes the new chart's defaults for the rest; `--reuse-values` would also keep the old defaults, which a newer chart may not work with. With values in a file, `-f electron.yaml` works the same.
 
 The engines are replaced one at a time, so the others keep serving; each reloads in a few minutes. With one engine the API stops serving while it reloads. Changing `engines.storage.mode` to or from `perEngine` changes the engines' volume claims, which Kubernetes won't edit in place: delete the engine StatefulSet first (`kubectl -n electron delete statefulset electron-engine`), then upgrade. Engines stop meanwhile; the model stays where it was kept. The router is replaced without dropping a request: the new router starts and is serving before the old one leaves, the old one finishes its live replies (up to 10 minutes), and conversations keep their engine and its cache. For that, the router saves its sessions in `router.sessionHandover.path` on its node, and the new router is placed on the same node when there is room.
 
@@ -89,17 +88,15 @@ The router answers with a code saying why:
 | Code | Meaning |
 | --- | --- |
 | `licence_starting` | The licence is being checked with smallest.ai; a minute at most |
-| `licence_suspended`, `licence_expired`, `licence_invalid` | The licence can't be used; engines unload |
-| `licence_not_entitled` | Your organization's plan doesn't include Electron on-prem |
-| `no_credits` | Out of credits: top up in the console. Engines unload after 24 hours |
-| `licence_unreachable` | smallest.ai hasn't been reachable for an hour: check outbound HTTPS |
-| `licence_unavailable` | The license-proxy pod isn't answering |
-| `usage_unbilled` | smallest.ai hasn't been able to bill this install's usage for a day: contact smallest.ai |
+| `licence_inactive` | smallest.ai refused the licence, or hasn't been reachable for an hour; engines unload. The license-proxy's log says which |
+| `licence_unavailable` | The license-proxy pod isn't answering: it exits when smallest.ai refuses the licence at its start |
 | `service_unavailable` | No engine is ready yet: they are downloading or loading |
 
-`GET /status` on the router (with the API key) shows whether it serves, why not, and how many engines are ready. Credits and the licence's grace are in the metrics (see Monitoring).
+`GET /status` on the router (with the API key) shows whether it serves, why not, and how many engines are ready.
 
-The license-proxy is one pod with a volume (its install id and the usage not yet billed). If its node fails, Kubernetes leaves it terminating, and the router refuses requests about 2 minutes later with `licence_unavailable`. Run it on a stable node (`licenseProxy.nodeSelector`, not spot). To move it off a dead node: `kubectl -n electron delete pod electron-license-proxy-0 --force`, after the node is really gone, or with Kubernetes's non-graceful node shutdown.
+The licence is checked when the license-proxy starts, and usage is reported every 2 minutes. An engine that starts asks smallest.ai for its model's key, so a licence that is suspended, expired or out of credits keeps new engines from loading; running engines keep serving until the license-proxy disables the install. Once disabled, the license-proxy's health check fails and Kubernetes restarts it, which checks the licence again.
+
+The license-proxy is one pod with a volume (the usage not yet billed). If its node fails, Kubernetes leaves it terminating, and the router refuses requests about 2 minutes later with `licence_unavailable`. Run it on a stable node (`licenseProxy.nodeSelector`, not spot). To move it off a dead node: `kubectl -n electron delete pod electron-license-proxy-0 --force`, after the node is really gone, or with Kubernetes's non-graceful node shutdown.
 
 ## Uninstall
 
@@ -111,19 +108,17 @@ The install has one scrape target with no key: the `<release>-metrics` Service, 
 
 | Metrics | From |
 | --- | --- |
-| `electron_licence_*`: `serving`, `state{status,reason}`, `credits`, `credit_hours_left`, `last_answer_age_seconds`, `grace_left_seconds` | The license-proxy: the licence as smallest.ai last answered |
-| `electron_usage_*`: `tokens_total{kind}`, `requests_total`, `unbilled_age_seconds`, `batches_pending` | The license-proxy: what the engines reported for billing, and whether smallest.ai has charged it |
-| `electron_router_*`: requests by status, time to first token, request duration, tokens, engines ready and expected, requests in flight per engine | The router |
+| `electron_router_*`: whether the licence lets the install serve (`licence_serving`), requests by status, time to first token, request duration, tokens, engines ready and expected, requests in flight per engine | The router |
 | `vllm:*`, labelled `electron_engine` with the engine's name: requests running and waiting, KV-cache use, prefix-cache hits, tokens | Each engine's vLLM |
-| `electron_scrape_up{source}` | 1 for each part the router could read; 0 means that engine or the license-proxy didn't answer |
+| `electron_scrape_up{source}` | 1 for each engine the router could read; 0 means that engine didn't answer |
 
 With the Prometheus Operator (kube-prometheus-stack), set `metrics.serviceMonitor.enabled: true` and give `metrics.serviceMonitor.labels` what your Prometheus selects ServiceMonitors by, often `release: <its release name>`. Otherwise add a scrape job for `electron-metrics.electron.svc:9090`.
 
-For Grafana, import `grafana/dashboards/electron-dashboard.json` from this repository and pick your Prometheus: the licence and billing, traffic, and each engine, with each panel saying what it shows and what to do about it. With several installs, choose one by its scrape job at the top.
+For Grafana, import `grafana/dashboards/electron-dashboard.json` from this repository and pick your Prometheus: the licence, traffic, and each engine, with each panel saying what it shows and what to do about it. With several installs, choose one by its scrape job at the top.
 
-Worth alerting on: `electron_licence_serving == 0` (the install is refusing requests: `electron_licence_state` says why), `electron_licence_credit_hours_left < 24`, `electron_licence_last_answer_age_seconds > 1800` (this server can't reach smallest.ai; it stops serving after an hour), `electron_usage_unbilled_age_seconds > 43200` (engines stop after a day), `electron_router_decode_pods_ready < electron_router_decode_pods_desired`, and `electron_scrape_up == 0`.
+Worth alerting on: `electron_router_licence_serving == 0` (the install is refusing requests for its licence: the license-proxy's log says why), `electron_router_decode_pods_ready < electron_router_decode_pods_desired`, and `electron_scrape_up == 0`.
 
-Logs (`kubectl logs`): the router writes one JSON line per request (its id, timings, tokens, status and the engine that served it), and the engines and the license-proxy write plain lines about loading, the licence and billing. None of them logs message content, API keys or the licence key.
+Logs (`kubectl logs`): the router writes one JSON line per request (its id, timings, tokens, status and the engine that served it), and the engines and the license-proxy write plain lines about loading, the licence and usage. None of them logs message content, API keys or the licence key.
 
 ## Values
 
@@ -144,4 +139,4 @@ Logs (`kubectl logs`): the router writes one JSON line per request (its id, timi
 | `router.discovery` | `kubernetes` | `kubernetes`: the router watches the engine pods, through a Role that reads pods and StatefulSets in this namespace. `static`: a fixed list of the engines, with no Role |
 | `router.sessionHandover.*` | enabled | See Upgrades |
 | `metrics.serviceMonitor.*` | disabled | See Monitoring |
-| `licenseProxy.storage.*` | 1 GiB | The license-proxy's state: the install's id and usage not yet acknowledged |
+| `licenseProxy.storage.*` | 1 GiB | The license-proxy's state: usage not yet billed |

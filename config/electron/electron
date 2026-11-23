@@ -123,11 +123,10 @@ build_of() {
   esac
 }
 
-RELEASE_KEYS=(ELECTRON_VERSION ELECTRON_ENGINE_IMAGE ELECTRON_ROUTER_IMAGE ELECTRON_LICENSE_PROXY_IMAGE ELECTRON_ENGINE_BUILD)
+RELEASE_KEYS=(ELECTRON_VERSION ELECTRON_ENGINE_IMAGE ELECTRON_ROUTER_IMAGE ELECTRON_LICENSE_PROXY_IMAGE)
 release_lines() {
   local k
-  for k in "${RELEASE_KEYS[@]::4}"; do echo "$k=$(release_get "$k" "$1")"; done
-  echo "ELECTRON_ENGINE_BUILD=$(release_get "ELECTRON_ENGINE_BUILD_${2^^}" "$1")"
+  for k in "${RELEASE_KEYS[@]}"; do echo "$k=$(release_get "$k" "$1")"; done
 }
 
 cmd_setup() {
@@ -245,7 +244,7 @@ cmd_setup() {
   [[ $licence_key =~ ^[A-Za-z0-9._~+/=-]+$ ]] || die "That licence key has characters a licence key never has." "Copy it again from the console."
 
   title "API key"
-  local api_key=${ELECTRON_API_KEY:-$(env_get ELECTRON_API_KEY)} vllm_key proxy_token shown=""
+  local api_key=${ELECTRON_API_KEY:-$(env_get ELECTRON_API_KEY)} vllm_key shown=""
   if [[ -n $api_key ]]; then
     ok "API key set (ELECTRON_API_KEY in .env)"
   else
@@ -267,8 +266,6 @@ cmd_setup() {
   [[ $api_key =~ ^[A-Za-z0-9._~+/=-]+$ ]] || die "The API key may hold letters, digits and . _ ~ + / = - only."
   vllm_key=$(env_get ELECTRON_VLLM_API_KEY)
   vllm_key=${vllm_key:-$(random_hex)}
-  proxy_token=$(env_get ELECTRON_PROXY_TOKEN)
-  proxy_token=${proxy_token:-$(random_hex)}
 
   title "Writing the configuration"
   local old_umask
@@ -277,7 +274,7 @@ cmd_setup() {
   rm -f .env
   cat >.env <<EOF
 # Written by ./electron setup. Keep it private: it holds this install's keys.
-$(release_lines release.env "$build")
+$(release_lines release.env)
 ELECTRON_BUILD=$build
 ELECTRON_RAM_SIZE=$ram
 ELECTRON_API_PORT=$port
@@ -286,7 +283,6 @@ ELECTRON_METRICS_HOST=$mhost
 ELECTRON_LICENSE_KEY=$licence_key
 ELECTRON_API_KEY=$api_key
 ELECTRON_VLLM_API_KEY=$vllm_key
-ELECTRON_PROXY_TOKEN=$proxy_token
 EOF
   umask "$old_umask"
   ok ".env                    settings and keys"
@@ -334,26 +330,28 @@ EOF
 }
 
 check_licence() {
-  local out code=0
-  out=$(compose_unattended run --rm --no-deps -T --quiet-pull license-proxy check 2>&1) || code=$?
-  local reason credits
-  reason=$(sed -n 's/.*"reason":"\([^"]*\)".*/\1/p' <<<"$out" | tail -1)
-  credits=$(sed -n 's/.*"credits":\([0-9.eE+-]*\).*/\1/p' <<<"$out" | tail -1)
-  case $code in
-    0) ok "Licence valid${credits:+, $credits credits}" ;;
-    1)
-      case $reason in
-        no_credits) note "The licence is valid but out of credits: top up in the smallest.ai console, or engines won't load." ;;
-        invalid) die "smallest.ai doesn't recognise this licence key." "Check ELECTRON_LICENSE_KEY in .env against the console (Settings, then Licenses)." ;;
-        not_entitled) die "This licence doesn't cover Electron." "Contact smallest.ai to add Electron to your organization." ;;
-        unbilled) die "smallest.ai hasn't been able to bill this install's usage for over a day." "Contact smallest.ai." ;;
-        *) die "The licence can't be used${reason:+ ($reason)}." "Contact smallest.ai." ;;
-      esac ;;
-    *)
-      note "Couldn't reach smallest.ai's license server to check the licence."
-      hint "Engines need it at every boot: allow outbound HTTPS from this server to smallest.ai's license server and model downloads."
-      tail -3 <<<"$out" | while IFS= read -r l; do printf '      %s\n' "$l" >&2; done ;;
-  esac
+  local id status log
+  compose_unattended up -d --no-deps --quiet-pull license-proxy >/dev/null 2>&1 ||
+    die "Couldn't start the license-proxy." "./electron logs license-proxy shows why."
+  id=$(compose ps -aq license-proxy)
+  for _ in $(seq 60); do
+    log=$(docker logs "$id" 2>&1)
+    status=$(docker inspect -f '{{.State.Status}}' "$id")
+    [[ $log == *"Initial license validation successful"* || $status != running ]] && break
+    sleep 1
+  done
+  compose_unattended stop license-proxy >/dev/null 2>&1 || true
+  if [[ $log == *"Initial license validation successful"* ]]; then
+    ok "Licence valid"
+  elif [[ $log == *"Request error"* ]]; then
+    note "Couldn't reach smallest.ai's license server to check the licence."
+    hint "Electron needs it at every start: allow outbound HTTPS from this server to api.smallest.ai and the model download host."
+  elif [[ $status != running ]]; then
+    die "smallest.ai didn't accept this licence key." \
+      "Check ELECTRON_LICENSE_KEY in .env against the console (Settings, then Licenses), and that your organization has credits."
+  else
+    note "The licence check is taking long; ./electron status shows it once Electron starts."
+  fi
 }
 
 licence_line() {
@@ -361,14 +359,14 @@ licence_line() {
   for e in $(engines); do
     [[ -n $(compose ps -q --status running "$e" 2>/dev/null) ]] || continue
     state=$(compose exec -T "$e" python3 -c '
-import json, sys, urllib.request as u
-req = u.Request("http://license-proxy:8090/v1/state", headers={"Authorization": "Bearer " + sys.stdin.read().strip()})
-s = json.load(u.urlopen(req, timeout=5))
-credits = "" if s.get("credits") is None else " · %.2f credits" % s["credits"]
-left = "" if s.get("hours_left") is None else " (about %d hours left)" % s["hours_left"]
-print(("active" if s["serve"] else s.get("reason", "?")) + credits + left)
-' <<<"$(env_get ELECTRON_PROXY_TOKEN)" 2>/dev/null) || state="license-proxy not answering"
-    printf 'Licence %s\n' "$state"
+import urllib.error, urllib.request as u
+try:
+    u.urlopen("http://license-proxy:6699/health", timeout=5)
+    print("active")
+except urllib.error.HTTPError:
+    print("disabled: smallest.ai refused it, or was unreachable for an hour (./electron logs license-proxy)")
+' 2>/dev/null) || state="license-proxy not answering"
+    printf 'Licence %s\n' "${state:-license-proxy not answering}"
     return
   done
 }
@@ -394,8 +392,12 @@ engine_state() {
     "waiting for the GPU"*) echo "waiting|another process is using this GPU; an engine needs a whole GPU" ;;
     "waiting for another engine to finish downloading"*) echo "waiting|another engine is downloading the model" ;;
     "waiting for another engine"*) echo "waiting|another engine is loading; one loads at a time" ;;
-    "waiting for the licence"*) echo "licence|$(sed -n 's/.* reason=\([^ ]*\).*/\1/p' <<<"$line"); ./electron status" ;;
-    "waiting for the license-proxy"*) echo "starting|waiting for the license-proxy" ;;
+    "waiting for the licence"*)
+      case $(sed -n 's/.* reason=\([^ ]*\).*/\1/p' <<<"$line") in
+        license_proxy_unreachable) echo "starting|waiting for the license-proxy" ;;
+        disabled) echo "licence|the license-proxy has disabled this install; ./electron status" ;;
+        *) echo "licence|$(sed -n 's/.* reason=\([^ ]*\).*/\1/p' <<<"$line"); ./electron status" ;;
+      esac ;;
     "downloading the bundle"*)
       local pct
       pct=$(sed -n 's/.* percent=\([0-9]*\).*/\1/p' <<<"$line")
@@ -576,7 +578,7 @@ latest_release() {
 }
 
 cmd_upgrade() {
-  local want="" ref stage from to fam f k label="the latest release"
+  local want="" ref stage from to f k label="the latest release"
   while (($#)); do
     case $1 in
       --yes | -y) yes_all=1; shift ;;
@@ -586,7 +588,7 @@ cmd_upgrade() {
   done
   need_setup
   command -v curl >/dev/null || die "curl is needed to download the release."
-  from=$(env_get ELECTRON_VERSION) fam=$(env_get ELECTRON_BUILD)
+  from=$(env_get ELECTRON_VERSION)
   [[ -f .upgrading ]] && from=$(sed -n 's/^from=//p' .upgrading)
   if [[ -n $want ]]; then
     [[ $want =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "A version is numbers and dots, like 1.1."
@@ -609,24 +611,20 @@ cmd_upgrade() {
         "Check the version (https://github.com/smallest-inc/smallest-self-host/releases) and that this server reaches raw.githubusercontent.com."
   done
   to=$(release_get ELECTRON_VERSION "$stage/release.env")
-  [[ -n $to && -n $(release_get "ELECTRON_ENGINE_BUILD_${fam^^}" "$stage/release.env") ]] ||
-    die "That release doesn't run on this server's GPUs, or its files are incomplete."
-  release_lines "$stage/release.env" "$fam" >"$stage/release.lines"
+  [[ -n $to && -n $(release_get ELECTRON_ENGINE_IMAGE "$stage/release.env") ]] || die "That release's files are incomplete."
+  release_lines "$stage/release.env" >"$stage/release.lines"
   new() { [[ $(sed -n "s/^$1=//p" "$stage/release.lines") != "$(env_get "$1")" ]]; }
   local resume="" model=""
   [[ -f .upgrading ]] && resume=1
   local -a changes=()
   new ELECTRON_ROUTER_IMAGE && changes+=("router: a new router; it finishes the replies in progress, then the API pauses for a few seconds")
-  if new ELECTRON_ENGINE_BUILD; then
-    changes+=("engines: a new model or settings; each engine reloads in turn, after any new model is downloaded")
-  elif new ELECTRON_ENGINE_IMAGE; then
-    changes+=("engines: a new engine; each engine reloads in turn")
-  fi
+  new ELECTRON_ENGINE_IMAGE && changes+=("engines: a new engine, model or settings; each engine reloads in turn, after any new model is downloaded")
+  new ELECTRON_LICENSE_PROXY_IMAGE && changes+=("license-proxy: a new license-proxy; it restarts in seconds and serving carries on")
   if ! cmp -s "$stage/compose.yaml" compose.yaml || ! cmp -s "$stage/engine.yaml" engine.yaml; then
     changes+=("router and engines: the release changes how they run; each one it touches restarts, engines in turn")
   fi
   if [[ -n $resume ]]; then
-    [[ $(sed -n 's/^build=//p' .upgrading) != $(sed -n 's/^ELECTRON_ENGINE_BUILD=//p' "$stage/release.lines") ]] && model=1
+    model=1
     changes+=("finishing the upgrade that stopped partway: what it hadn't restarted yet")
   elif [[ $to == "$from" && ${#changes[@]} -eq 0 ]]; then
     ok "Already on $to."
@@ -634,7 +632,7 @@ cmd_upgrade() {
   fi
   ok "Release $to"
   for f in "${changes[@]}"; do hint "$f"; done
-  ((${#changes[@]})) || hint "only the license-proxy restarts; serving carries on"
+  ((${#changes[@]})) || hint "nothing restarts; only the version changes"
   local up=""
   running && up=1
   if [[ -n $up && "${changes[*]}" == *engines* ]] && (($(engines | wc -l) == 1)); then
@@ -650,8 +648,8 @@ cmd_upgrade() {
     fi
   done
   ok "Images pulled"
-  new ELECTRON_ENGINE_BUILD && model=1
-  [[ -n $resume ]] || printf 'from=%s\nbuild=%s\n' "$from" "$(env_get ELECTRON_ENGINE_BUILD)" >.upgrading
+  new ELECTRON_ENGINE_IMAGE && model=1
+  [[ -n $resume ]] || printf 'from=%s\n' "$from" >.upgrading
   (
     umask 077
     grep -vE "^($(IFS='|'; echo "${RELEASE_KEYS[*]}"))=" .env >"$stage/env"

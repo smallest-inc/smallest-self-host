@@ -27,7 +27,7 @@ imagePullSecrets:
 {{- end }}
 
 {{- define "electron.licenseProxyURL" -}}
-http://{{ .Release.Name }}-license-proxy:8090
+http://{{ .Release.Name }}-license-proxy:6699
 {{- end }}
 
 {{- define "electron.release" -}}
@@ -49,18 +49,10 @@ http://{{ .Release.Name }}-license-proxy:8090
 {{- with .root.Values.images.registry }}{{ trimSuffix "/" . }}/{{ base $ref }}{{ else }}{{ $ref }}{{ end -}}
 {{- end }}
 
-{{- define "electron.family" -}}
-{{- $gpu := .Values.engines.gpu | upper -}}
-{{- if contains "GH200" $gpu -}}{{ fail "engines.gpu GH200: Grace Hopper is an Arm host the images don't run on" }}
-{{- else if contains "RTX PRO 6000" $gpu -}}rtx
-{{- else if or (contains "H100" $gpu) (contains "H200" $gpu) -}}hopper
-{{- else -}}{{ fail (printf "engines.gpu %q: Electron runs on H100, H200 or RTX PRO 6000" .Values.engines.gpu) }}
-{{- end -}}
-{{- end }}
-
 {{- define "electron.modelRAM" -}}
 {{- $gpu := .Values.engines.gpu | upper -}}
-{{- if contains "RTX PRO 6000" $gpu -}}22Gi
+{{- if contains "GH200" $gpu -}}{{ fail "engines.gpu GH200: Grace Hopper is an Arm host the images don't run on" }}
+{{- else if contains "RTX PRO 6000" $gpu -}}22Gi
 {{- else if or (contains "H100" $gpu) (contains "H200" $gpu) -}}34Gi
 {{- else -}}{{ fail (printf "engines.gpu %q: Electron runs on H100, H200 or RTX PRO 6000" .Values.engines.gpu) }}
 {{- end -}}

@@ -8,10 +8,8 @@ services:
   engine:
     image: ${ELECTRON_ENGINE_IMAGE}
     restart: unless-stopped
-    labels: { ai.smallest.electron.build: "${ELECTRON_ENGINE_BUILD}" }
     environment:
       VLLM_API_KEY: ${ELECTRON_VLLM_API_KEY}
-      ELECTRON_PROXY_TOKEN: ${ELECTRON_PROXY_TOKEN}
     volumes:
       - bundles:/var/lib/electron
       - cache:/var/cache/electron

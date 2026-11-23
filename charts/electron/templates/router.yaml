@@ -169,11 +169,6 @@ spec:
                   key: vllm-api-key
             - name: LICENSE_PROXY_URL
               value: {{ include "electron.licenseProxyURL" . }}
-            - name: LICENSE_PROXY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "electron.keysSecret" . }}
-                  key: proxy-token
             {{- if $kube }}
             - name: NAMESPACE
               valueFrom:
